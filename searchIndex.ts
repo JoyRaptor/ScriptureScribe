@@ -65,6 +65,7 @@ let kjvStore: Record<string, string> = {};
 export function setKJVStoreRef(data: Record<string, string>): void {
   kjvStore = data;
   kjvLowerCache = null;
+  kjvTokenCache = null;
 }
 
 /**
@@ -78,6 +79,20 @@ function kjvLowerEntries(): Array<[string, string]> {
     kjvLowerCache = Object.entries(kjvStore).map(([k, v]) => [k, v.toLowerCase()]);
   }
   return kjvLowerCache;
+}
+
+/**
+ * [ref, lowercasedText, tokens] triples — tokens computed once per KJV load.
+ */
+let kjvTokenCache: Array<[string, string, string[]]> | null = null;
+
+function kjvTokenEntries(): Array<[string, string, string[]]> {
+  if (!kjvTokenCache) {
+    kjvTokenCache = kjvLowerEntries().map(([k, lc]) =>
+      [k, lc, lc.replace(/[^a-z\s]/g, "").split(/\s+/)]
+    );
+  }
+  return kjvTokenCache;
 }
 
 /** Get full verse text for a "Book Ch:V" key */
@@ -533,7 +548,7 @@ async function searchPhrase(raw: string, limit: number): Promise<SearchResult[]>
 
   const scored: Array<{ ref: string; score: number }> = [];
 
-  const entries = kjvLowerEntries();
+  const entries = kjvTokenEntries();
   let sliceStart = Date.now();
   for (let ei = 0; ei < entries.length; ei++) {
     // Yield on a 12ms budget — this scan used to hold the UI thread for the
@@ -542,8 +557,7 @@ async function searchPhrase(raw: string, limit: number): Promise<SearchResult[]>
       await new Promise<void>(r => setTimeout(r, 0));
       sliceStart = Date.now();
     }
-    const [verseKey, lc] = entries[ei];
-    const words = lc.replace(/[^a-z\s]/g, "").split(/\s+/);
+    const [verseKey, lc, words] = entries[ei];
 
     // ── Tier 1: exact substring (score 1.0) ──────────────────────────────────
     if (lc.includes(query)) {
@@ -629,7 +643,7 @@ async function searchBoolean(raw: string, limit: number): Promise<SearchResult[]
 
   const results: SearchResult[] = [];
 
-  const entries = kjvLowerEntries();
+  const entries = kjvTokenEntries();
   let sliceStart = Date.now();
   for (let ei = 0; ei < entries.length; ei++) {
     if (results.length >= limit) break;
@@ -637,13 +651,13 @@ async function searchBoolean(raw: string, limit: number): Promise<SearchResult[]
       await new Promise<void>(r => setTimeout(r, 0));
       sliceStart = Date.now();
     }
-    const [verseKey, lc] = entries[ei];
+    const [verseKey, lc, words] = entries[ei];
 
     // Verse matches if ANY or-clause is satisfied
     const matches = orClauses.some(terms => {
       return terms.every(t => {
         const found  = lc.includes(t.word) ||
-          lc.split(/\s+/).some(w => stem(w) === t.wordStem);
+          words.some(w => stem(w) === t.wordStem);
         return t.negate ? !found : found;
       });
     });
