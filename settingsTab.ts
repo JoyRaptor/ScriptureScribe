@@ -257,32 +257,24 @@ class UIFactory {
 // ── Preview Helpers ──────────────────────────────────────────────────────────
 function buildWordCardPreview(container: HTMLElement, showEnglish: boolean, showTranslit: boolean, showStrongs: boolean): void {
   container.empty();
-  container.style.cssText = `
-    display:flex; gap:6px; flex-wrap:wrap; padding:16px;
-    background: var(--background-primary); border-radius:8px;
-    border:1px solid var(--background-modifier-border);
-    justify-content:center; align-items:center;
-  `;
+  container.classList.add("ss-preview-wrap");
   const sample = [
     { english: "love", original: "ἀγάπη", translit: "agapē", strongs: "G26" },
     { english: "God", original: "θεός", translit: "theos", strongs: "G2316" },
   ];
   for (const w of sample) {
-    const card = container.createEl("div");
-    card.style.cssText = `text-align:center; background:var(--background-secondary); border-radius:5px; padding:6px 8px; min-width:60px; max-width:90px; border:1px solid var(--background-modifier-border); display:flex; flex-direction:column; gap:2px;`;
+    const card = container.createEl("div", { cls: "ss-preview-word-card" });
     if (showEnglish) {
-      const el = card.createEl("div", { text: w.english });
-      el.style.cssText = `font-size:11px; color:var(--text-normal); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;`;
+      const el = card.createEl("div", { cls: "ss-preview-english", text: w.english });
     }
-    const orig = card.createEl("div", { text: w.original });
-    orig.style.cssText = `font-size:13px; color:${PM}; font-style:italic;`;
+    const orig = card.createEl("div", { cls: "ss-preview-original", text: w.original });
+    orig.style.color = PM;
     if (showTranslit) {
-      const el = card.createEl("div", { text: w.translit });
-      el.style.cssText = `font-size:9px; color:var(--text-muted); opacity:0.8;`;
+      const el = card.createEl("div", { cls: "ss-preview-translit", text: w.translit });
     }
     if (showStrongs) {
-      const el = card.createEl("div", { text: w.strongs });
-      el.style.cssText = `font-size:9px; color:${PM}; font-weight:700; opacity:0.75;`;
+      const el = card.createEl("div", { cls: "ss-preview-strongs", text: w.strongs });
+      el.style.color = PM;
     }
   }
 }
@@ -304,10 +296,8 @@ export class ScriptureScribeSettingTab extends PluginSettingTab {
     DesignSystem.inject(containerEl);
 
     // Build Hero
-    const hero = containerEl.createEl("div");
-    hero.style.cssText = `display: flex; align-items: center; gap: 24px; padding: 16px; margin-bottom: 24px;`;
-    const icon = hero.createEl("div");
-    icon.style.cssText = `display: flex; align-items: center; justify-content: center;`;
+    const hero = containerEl.createEl("div", { cls: "ss-hero" });
+    const icon = hero.createEl("div", { cls: "ss-hero-icon" });
     icon.innerHTML = getIcon("Open-Bible-app-icon", 120);
     const text = hero.createEl("div", { cls: "ss-hero-text" });
     text.createEl("div", { text: "ScriptureScribe", attr: { style: "font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px;" } });
@@ -504,7 +494,11 @@ export class ScriptureScribeSettingTab extends PluginSettingTab {
       loadGFont(font.key); // ensure font is loaded to display properly on the button
       const btn = fontGrid.createEl("button", { text: font.display });
       const isActive = this.plugin.settings.bibleText.fontFamily === font.key;
-      btn.style.cssText = `padding: 8px 14px; border-radius: 8px; border: 1px solid ${isActive ? P : 'var(--background-modifier-border)'}; background: ${isActive ? PL : 'var(--background-secondary)'}; color: ${isActive ? P : 'var(--text-normal)'}; font-family: ${font.css}; font-size: 13px; cursor: pointer; transition: all 0.2s;`;
+      btn.classList.add("ss-font-btn");
+      btn.style.border = `1px solid ${isActive ? P : 'var(--background-modifier-border)'}`;
+      btn.style.background = isActive ? PL : 'var(--background-secondary)';
+      btn.style.color = isActive ? P : 'var(--text-normal)';
+      btn.style.fontFamily = font.css;
       btn.addEventListener("click", async () => {
         fontGrid.querySelectorAll("button").forEach(b => { b.style.borderColor = "var(--background-modifier-border)"; b.style.background = "var(--background-secondary)"; b.style.color = "var(--text-normal)"; });
         btn.style.borderColor = P; btn.style.background = PL; btn.style.color = P;
