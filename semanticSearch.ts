@@ -87,20 +87,44 @@ function normalizeVerseRef(ref: string): string {
 
 
 // ── Float16 decoder ───────────────────────────────────────────────────────────
+// All 65,536 possible float16 values are precomputed into one table so bulk
+// decode is a single array lookup per element instead of bit math + Math.pow.
 
-function decodeFloat16(f16: number): number {
-  const sign = (f16 >> 15) & 0x1;
-  const exp  = (f16 >> 10) & 0x1f;
-  const mant =  f16        & 0x3ff;
-  if (exp === 0)  return (sign ? -1 : 1) * Math.pow(2, -14) * (mant / 1024);
-  if (exp === 31) return mant ? NaN : (sign ? -Infinity : Infinity);
-  return (sign ? -1 : 1) * Math.pow(2, exp - 15) * (1 + mant / 1024);
+let F16_LUT: Float32Array | null = null;
+
+function buildF16Lut(): Float32Array {
+  const lut = new Float32Array(65536);
+  for (let f16 = 0; f16 < 65536; f16++) {
+    const sign = (f16 >> 15) & 0x1;
+    const exp  = (f16 >> 10) & 0x1f;
+    const mant =  f16        & 0x3ff;
+    if (exp === 0)       lut[f16] = (sign ? -1 : 1) * Math.pow(2, -14) * (mant / 1024);
+    else if (exp === 31) lut[f16] = mant ? NaN : (sign ? -Infinity : Infinity);
+    else                 lut[f16] = (sign ? -1 : 1) * Math.pow(2, exp - 15) * (1 + mant / 1024);
+  }
+  return lut;
+}
+
+// Raw float16 payload. Decoding to Float32 costs ~48MB of RAM and only pays
+// off once an embedding pipeline exists (never, on most mobile devices), so
+// the decode is deferred until the first actual vector search.
+let verseVectorsF16: Uint16Array | null = null;
+
+function ensureVectorsDecoded(): void {
+  if (verseVectors || !verseVectorsF16) return;
+  const lut = F16_LUT ?? (F16_LUT = buildF16Lut());
+  const f16 = verseVectorsF16;
+  const out = new Float32Array(f16.length);
+  for (let i = 0; i < f16.length; i++) out[i] = lut[f16[i]];
+  verseVectors    = out;
+  verseVectorsF16 = null;
+  console.log(`ScriptureScribe: decoded ${out.length / dims} verse vectors (${dims}d float16→f32)`);
 }
 
 // ── Load pre-shipped verse vectors ────────────────────────────────────────────
 
 export async function loadVerseVectors(app: App, pluginDir: string): Promise<void> {
-  if (verseVectors) return;
+  if (verseVectors || verseVectorsF16) return;
   try {
     const binPath = `${pluginDir}/verse-vectors.bin`;
     if (!await app.vault.adapter.exists(binPath)) {
@@ -112,12 +136,16 @@ export async function loadVerseVectors(app: App, pluginDir: string): Promise<voi
     const verseCount  = dv.getUint32(0, true);
     dims              = dv.getUint32(4, true);
     const refsLen     = dv.getUint32(8, true);
-    verseRefs         = JSON.parse(new TextDecoder().decode(buf.slice(12, 12 + refsLen)));
+    const rawRefs: string[] = JSON.parse(new TextDecoder().decode(buf.slice(12, 12 + refsLen)));
+    // Normalize refs once at load: the bin uses Roman-numeral book names
+    // ("I Samuel") while kjvStore keys are Arabic ("1 Samuel"). Every
+    // downstream getKJVText() lookup depends on these matching.
+    verseRefs = rawRefs.map(normalizeVerseRef);
     const vectorStart = 12 + refsLen;
-    const f16         = new Uint16Array(buf, vectorStart);
-    verseVectors      = new Float32Array(verseCount * dims);
-    for (let i = 0; i < f16.length; i++) verseVectors[i] = decodeFloat16(f16[i]);
-    console.log(`ScriptureScribe: loaded ${verseCount} verse vectors (${dims}d float16→f32)`);
+    // buf.slice copies to a fresh 2-byte-aligned buffer; a Uint16Array view
+    // directly onto buf throws whenever refsLen is odd.
+    verseVectorsF16 = new Uint16Array(buf.slice(vectorStart));
+    console.log(`ScriptureScribe: loaded ${verseCount} verse vector refs (${dims}d, decode deferred)`);
   } catch (e) {
     console.warn("ScriptureScribe: verse vector load failed", e);
   }
@@ -126,8 +154,10 @@ export async function loadVerseVectors(app: App, pluginDir: string): Promise<voi
 // ── Cosine similarity search against loaded vectors ───────────────────────────
 
 async function vectorSearch(query: string, topK: number): Promise<SemanticResult[] | null> {
-  if (!verseVectors || !verseRefs || !embeddingPipeline) return null;
+  if ((!verseVectors && !verseVectorsF16) || !verseRefs || !embeddingPipeline) return null;
   try {
+    ensureVectorsDecoded();
+    if (!verseVectors) return null;
     const queryVec = await embeddingPipeline(query);
     if (!queryVec || queryVec.length !== dims) return null;
 
@@ -143,7 +173,7 @@ async function vectorSearch(query: string, topK: number): Promise<SemanticResult
     const indices = Array.from({ length: N }, (_, i) => i);
     indices.sort((a, b) => scoreArr[b] - scoreArr[a]);
     return indices.slice(0, topK).map(i => ({
-      ref:   normalizeVerseRef(verseRefs![i]),
+      ref:   verseRefs![i],
       score: scoreArr[i],
       source: "Vector" as const,
     }));
@@ -178,21 +208,35 @@ async function trySmartConnectionsPipeline(app: App): Promise<boolean> {
 
     if (!embedModel || typeof embedModel.embed !== "function") return false;
 
+    // verse-vectors.bin was built with all-MiniLM-L6-v2. A different model
+    // with the SAME dimension count (SC's default bge-micro-v2 is also 384d)
+    // passes any dims check yet produces meaningless cosine scores, so the
+    // model identity must match — not just the shape.
+    const modelId = String(
+      embedModel.model_key ?? embedModel.opts?.model_key ??
+      embedModel.model_config?.model_key ?? embedModel.config?.model_key ?? ""
+    ).toLowerCase();
+    if (!modelId.includes("minilm-l6")) {
+      console.info(
+        `ScriptureScribe: Smart Connections model "${modelId || "unknown"}" is not ` +
+        `all-MiniLM-L6-v2 — bridge skipped so cosine scores stay valid.`
+      );
+      return false;
+    }
+
     // Sanity check — actually embed something
     const testVec = await embedModel.embed("test");
     const testArr = testVec instanceof Float32Array ? testVec : new Float32Array(testVec ?? []);
     if (testArr.length === 0) return false;
 
-    // If SC's model dims differ from our pre-shipped vectors, cosine search
-    // against verse-vectors.bin would produce garbage. Clear stored vecs so
-    // we fall through to TF-IDF after embedding — the pipeline itself is still
-    // useful for Smart Connections' own vault-note queries.
-    if (verseVectors && testArr.length !== dims) {
+    // Belt-and-braces dims check on top of the identity check above.
+    if ((verseVectors || verseVectorsF16) && testArr.length !== dims) {
       console.info(
         `ScriptureScribe: Smart Connections model (${testArr.length}d) ≠ ` +
         `verse-vectors.bin (${dims}d). Cosine search disabled; TF-IDF active.`
       );
-      verseVectors = null;
+      verseVectors    = null;
+      verseVectorsF16 = null;
     }
 
     embeddingPipeline = async (text: string) => {
@@ -307,7 +351,7 @@ const STOP = new Set([
   "through","without","before","against","between","because","therefore",
 ]);
 
-function tfidfSearch(query: string, topK: number): SemanticResult[] {
+async function tfidfSearch(query: string, topK: number): Promise<SemanticResult[]> {
   const queryWords = query
     .toLowerCase()
     .replace(/[^a-z\s'-]/g, " ")
@@ -322,19 +366,28 @@ function tfidfSearch(query: string, topK: number): SemanticResult[] {
   const refs = verseRefs;
   if (!refs || refs.length === 0) return [];
 
+  // Regexes compiled once per query word — never inside the verse loop.
+  const wordRes = queryWords.map(w => new RegExp(`\\b${w.replace(/'/g, "\\'")}`, "g"));
+
   const scores: Array<[string, number]> = [];
 
-  for (const ref of refs) {
+  let sliceStart = Date.now();
+  for (let ri = 0; ri < refs.length; ri++) {
+    // Yield to the event loop on a time budget so long scans can't freeze the UI.
+    if ((ri & 2047) === 0 && Date.now() - sliceStart > 12) {
+      await new Promise<void>(r => setTimeout(r, 0));
+      sliceStart = Date.now();
+    }
+    const ref  = refs[ri];
     const text = getKJVText(ref);
     if (!text) continue;
     const lower = text.toLowerCase();
     let score = 0;
 
-    for (const word of queryWords) {
-      if (lower.includes(word)) {
+    for (let qi = 0; qi < queryWords.length; qi++) {
+      if (lower.includes(queryWords[qi])) {
         score += 1.0;
-        const re = new RegExp(`\\b${word.replace(/'/g, "\\'")}`, "g");
-        const m  = lower.match(re);
+        const m = lower.match(wordRes[qi]);
         if (m) score += m.length * 0.4;
       }
     }
@@ -356,7 +409,7 @@ function tfidfSearch(query: string, topK: number): SemanticResult[] {
   scores.sort((a, b) => b[1] - a[1]);
   const max = scores[0]?.[1] ?? 1;
   return scores.slice(0, topK).map(([ref, score]) => ({
-    ref: normalizeVerseRef(ref),
+    ref,
     score: score / max,
     source: "Keyword" as const
   }));
@@ -377,7 +430,7 @@ export async function semanticVerseSearch(
   }
 
   // Tier 1 + 2: vector cosine (requires pre-shipped vectors + working pipeline)
-  if (embeddingPipeline && verseVectors) {
+  if (embeddingPipeline && (verseVectors || verseVectorsF16)) {
     const vResults = await vectorSearch(query, topK);
     if (vResults && vResults.length > 0) return vResults;
   }

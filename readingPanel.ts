@@ -870,11 +870,12 @@ export class ScriptureReadingPanel extends ItemView {
     const raw = this.searchInput.value.trim();
     if (!raw) return;
 
-    // Start the search animation, then yield two paint frames so the browser
-    // actually renders it before the (sometimes instant) search runs.
+    // Start the search animation and let one frame paint before work begins.
+    // The scanners yield to the event loop on a time budget, so the animation
+    // keeps playing for exactly as long as the search actually takes — no
+    // artificial sleeps needed on either side.
     (this as any)._startSearchAnim?.();
-    const animStart = Date.now();
-    await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    await new Promise<void>(r => requestAnimationFrame(() => r()));
 
     // ── Verse address shortcut ────────────────────────────────────────────────
     const normalized = raw.replace(/[a-zA-Z]+/g, w =>
@@ -888,39 +889,15 @@ export class ScriptureReadingPanel extends ItemView {
       return;
     }
 
-    // ── Yield 500ms of idle time BEFORE the search runs ───────────────────────
-    // The search computation (and semantic search) hold the JS thread with no
-    // real yield points — rAF/setInterval cannot fire while it runs. By waiting
-    // here (while the thread is truly idle), we guarantee ~6 visible char cycles
-    // before the results appear. After the wait, search runs and results pop up.
-    await new Promise(r => setTimeout(r, 500));
-
     // ── Strong's / word search ────────────────────────────────────────────────
-    if (!isIndexBuilt()) buildSearchIndex(getGreekData(), getHebrewData(), getLXXData());
-    let { results, mode } = await search(raw);
+    // The build must be awaited: the index object exists from the first line
+    // of buildSearchIndex, so an un-awaited build lets search() scan a
+    // half-populated index and silently return partial results. search()
+    // already falls through to semantic search internally when results are
+    // sparse — no second semantic pass needed here.
+    if (!isIndexBuilt()) await buildSearchIndex(getGreekData(), getHebrewData(), getLXXData());
+    const { results, mode } = await search(raw);
 
-
-    // ── Semantic search fallback when Strong's/word search returns nothing ──
-    if (results.length === 0) {
-      const { semanticVerseSearch } = await import("./semanticSearch");
-      const semanticResults = await semanticVerseSearch(raw, 15, this.app);
-      if (semanticResults.length > 0) {
-        // Convert SemanticResult[] to SearchResult[] format
-        results = semanticResults.map(r => ({
-          reference: r.ref,
-          preview: getKJVText(r.ref).slice(0, 120) + (getKJVText(r.ref).length > 120 ? "…" : ""),
-          isSemantic: true,
-          score: r.score,
-          source: r.source,
-        }));
-        mode = "semantic";
-      }
-    }
-
-    // Post-search yield: resume cycling for another ~5 chars before results appear
-    await new Promise(r => setTimeout(r, 400));
-
-    // Stop the search animation now that results are ready
     (this as any)._stopSearchAnim?.();
     this.showSearchResults(raw, results, mode);
   }

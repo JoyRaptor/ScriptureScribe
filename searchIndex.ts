@@ -64,6 +64,20 @@ let kjvStore: Record<string, string> = {};
 
 export function setKJVStoreRef(data: Record<string, string>): void {
   kjvStore = data;
+  kjvLowerCache = null;
+}
+
+/**
+ * [ref, lowercasedText] pairs, built once per KJV load (~5MB) and shared by
+ * every full-corpus scanner so no search lowercases 31k verses again.
+ */
+let kjvLowerCache: Array<[string, string]> | null = null;
+
+function kjvLowerEntries(): Array<[string, string]> {
+  if (!kjvLowerCache) {
+    kjvLowerCache = Object.entries(kjvStore).map(([k, v]) => [k, v.toLowerCase()]);
+  }
+  return kjvLowerCache;
 }
 
 /** Get full verse text for a "Book Ch:V" key */
@@ -94,11 +108,14 @@ export async function buildSearchIndex(
 
   const addStore = async (store: typeof greekStore) => {
     let count = 0;
+    let sliceStart = Date.now();
     for (const [verseKey, words] of Object.entries(store)) {
       count++;
-      if (count % 500 === 0) {
-        // Yield to main thread to prevent UI freeze and allow GC
-        await new Promise(r => setTimeout(r, 10));
+      // Yield only when a 12ms work budget is spent — fixed 10ms sleeps every
+      // 500 verses added over a second of pure waiting to every index build.
+      if ((count & 511) === 0 && Date.now() - sliceStart > 12) {
+        await new Promise<void>(r => setTimeout(r, 0));
+        sliceStart = Date.now();
       }
       for (const word of words) {
         // ── Strong's index ────────────────────────────────────────────────
@@ -107,7 +124,10 @@ export async function buildSearchIndex(
           if (num) {
             let list = strongsIndex!.get(num);
             if (!list) { list = []; strongsIndex!.set(num, list); }
-            if (!list.includes(verseKey)) list.push(verseKey);
+            // Words arrive grouped verse-by-verse, so a duplicate ref can only
+            // be the most recent push — checking the last element replaces an
+            // O(n) includes() scan that went quadratic on frequent lemmas.
+            if (list[list.length - 1] !== verseKey) list.push(verseKey);
           }
         }
         // ── Morph index ───────────────────────────────────────────────────
@@ -217,9 +237,9 @@ export async function search(raw: string, limit = 200): Promise<{ results: Searc
   switch (mode) {
     case "strongs":  results = searchStrongs(query, limit); break;
     case "original": results = searchOriginal(query, limit); break;
-    case "boolean":  results = searchBoolean(query, limit); break;
-    case "phrase":   results = searchPhrase(query, limit); break;
-    case "english":  results = searchEnglish(query, limit); break;
+    case "boolean":  results = await searchBoolean(query, limit); break;
+    case "phrase":   results = await searchPhrase(query, limit); break;
+    case "english":  results = await searchEnglish(query, limit); break;
     case "morph": {
       // Query format: "morph:G4100|V-A*" or "morph:V-A*" (lemma optional)
       const morphQuery = query.replace(/^morph:/i, "").trim();
@@ -414,7 +434,7 @@ function stripDiacritics(text: string): string {
 
 // ── English gloss search ──────────────────────────────────────────────────────
 
-function searchEnglish(raw: string, limit: number): SearchResult[] {
+async function searchEnglish(raw: string, limit: number): Promise<SearchResult[]> {
   const needle = raw.trim().toLowerCase();
   const needleStem = stem(needle);
 
@@ -427,18 +447,23 @@ function searchEnglish(raw: string, limit: number): SearchResult[] {
   if (exact.length >= 5) return exact;
 
   // Second pass: also search KJV verse text directly (catches "eternal life" etc.)
-  // TODO(v1-acceptable): This 31K KJV full scan is fast enough (~5ms), but for V2, build a proper inverted index.
   const kvResults: SearchResult[] = [];
   const seen = new Set(exact.map(r => r.reference));
-  for (const [verseKey, text] of Object.entries(kjvStore)) {
+  const entries = kjvLowerEntries();
+  let sliceStart = Date.now();
+  for (let ei = 0; ei < entries.length; ei++) {
     if (kvResults.length + exact.length >= limit) break;
+    if ((ei & 1023) === 0 && Date.now() - sliceStart > 12) {
+      await new Promise<void>(r => setTimeout(r, 0));
+      sliceStart = Date.now();
+    }
+    const [verseKey, lc] = entries[ei];
     if (seen.has(verseKey)) continue;
-    const lc = text.toLowerCase();
     if (lc.includes(needle)) {
       seen.add(verseKey);
       kvResults.push({
         reference: verseKey,
-        preview:   makePreview(text),
+        preview:   makePreview(kjvStore[verseKey] ?? ""),
         source:    "Keyword",
       });
     }
@@ -498,7 +523,7 @@ function wordSearch(
 // window of ±5 words. This catches paraphrased memories and word-order variants
 // like "leads me beside still" matching "leadeth me beside the still".
 
-function searchPhrase(raw: string, limit: number): SearchResult[] {
+async function searchPhrase(raw: string, limit: number): Promise<SearchResult[]> {
   const query   = raw.trim().replace(/^"|"$/g, "").toLowerCase();
   const tokens  = query.split(/\s+/).filter(Boolean);
   if (!tokens.length) return [];
@@ -508,8 +533,16 @@ function searchPhrase(raw: string, limit: number): SearchResult[] {
 
   const scored: Array<{ ref: string; score: number }> = [];
 
-  for (const [verseKey, text] of Object.entries(kjvStore)) {
-    const lc    = text.toLowerCase();
+  const entries = kjvLowerEntries();
+  let sliceStart = Date.now();
+  for (let ei = 0; ei < entries.length; ei++) {
+    // Yield on a 12ms budget — this scan used to hold the UI thread for the
+    // whole corpus pass.
+    if ((ei & 1023) === 0 && Date.now() - sliceStart > 12) {
+      await new Promise<void>(r => setTimeout(r, 0));
+      sliceStart = Date.now();
+    }
+    const [verseKey, lc] = entries[ei];
     const words = lc.replace(/[^a-z\s]/g, "").split(/\s+/);
 
     // ── Tier 1: exact substring (score 1.0) ──────────────────────────────────
@@ -576,7 +609,7 @@ function searchPhrase(raw: string, limit: number): SearchResult[] {
 // Precedence: all ANDs are evaluated before ORs (standard IR convention).
 // Single-word terms are stem-searched; quoted phrases are exact.
 
-function searchBoolean(raw: string, limit: number): SearchResult[] {
+async function searchBoolean(raw: string, limit: number): Promise<SearchResult[]> {
   // Normalise operators
   const q = raw.trim()
     .replace(/\bAND\b/gi, " AND ")
@@ -596,9 +629,15 @@ function searchBoolean(raw: string, limit: number): SearchResult[] {
 
   const results: SearchResult[] = [];
 
-  for (const [verseKey, text] of Object.entries(kjvStore)) {
+  const entries = kjvLowerEntries();
+  let sliceStart = Date.now();
+  for (let ei = 0; ei < entries.length; ei++) {
     if (results.length >= limit) break;
-    const lc = text.toLowerCase();
+    if ((ei & 1023) === 0 && Date.now() - sliceStart > 12) {
+      await new Promise<void>(r => setTimeout(r, 0));
+      sliceStart = Date.now();
+    }
+    const [verseKey, lc] = entries[ei];
 
     // Verse matches if ANY or-clause is satisfied
     const matches = orClauses.some(terms => {
@@ -609,7 +648,7 @@ function searchBoolean(raw: string, limit: number): SearchResult[] {
       });
     });
 
-    if (matches) results.push({ reference: verseKey, preview: makePreview(text) });
+    if (matches) results.push({ reference: verseKey, preview: makePreview(kjvStore[verseKey] ?? "") });
   }
   return results;
 }
@@ -624,7 +663,20 @@ function wordMatches(word: string, token: string): boolean {
 // A minimal English stemmer covering the most common suffixes in KJV.
 // Enough to match "leadeth" → "lead", "walked" → "walk", "loves" → "love".
 
+// KJV vocabulary is ~14k distinct words; memoizing turns the 12-regex chain
+// into a Map hit for every repeat word. Size-capped so pathological input
+// (e.g. pasted foreign text) can't grow the cache without bound.
+const STEM_CACHE = new Map<string, string>();
+
 function stem(word: string): string {
+  const cached = STEM_CACHE.get(word);
+  if (cached !== undefined) return cached;
+  const s = stemRaw(word);
+  if (STEM_CACHE.size < 65536) STEM_CACHE.set(word, s);
+  return s;
+}
+
+function stemRaw(word: string): string {
   return word
     .replace(/eth$/, (m, o) => o >= 3 ? "" : m)       // leadeth → lead
     .replace(/est$/, (m, o) => o >= 3 ? "" : m)       // goest → go
