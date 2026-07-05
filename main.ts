@@ -13,6 +13,7 @@ import { setKJVData, getKJVData, setSweteData } from "./fetcher";
 import { setGreekData, setHebrewData, setLXXData, setStrongsData, setLXXDefsData, setLSJData, getGreekData, getHebrewData, getLXXData, initLazyLoader } from "./interlinear";
 import { ScriptureReadingPanel, READING_PANEL_VIEW_TYPE } from "./readingPanel";
 import { setCrossRefData } from "./crossRefs";
+import { setVersificationData } from "./versification";
 import { buildSearchIndex } from "./searchIndex";
 import { buildVaultIndex, updateVaultIndexForFile, removeVaultIndexFile, setVaultHighlightSettings } from "./vaultIndex";
 import { getVerseOfTheDay } from "./verseOfTheDay";
@@ -69,7 +70,8 @@ export default class ScriptureScribePlugin extends Plugin {
       this.loadKJVData(),
       this.loadSweteData(),
       this.loadInterlinearData(),
-      this.loadCrossRefData()
+      this.loadCrossRefData(),
+      this.loadVersificationData()
     ]).then(async () => {
       // Build the search index (Strongs/Morph) asynchronously to prevent mobile freezing
       await buildSearchIndex(getGreekData(), getHebrewData(), getLXXData());
@@ -347,6 +349,19 @@ export default class ScriptureScribePlugin extends Plugin {
     } catch (e) {
       console.info("ScriptureScribe: cross-refs.json not found — cross-references unavailable.");
       setCrossRefData({});
+    }
+  }
+
+  private async loadVersificationData(): Promise<void> {
+    try {
+      const path = normalizePath(this.manifest.dir + "/versification-mapping.json");
+      const raw  = await this.app.vault.adapter.read(path);
+      const data = JSON.parse(raw);
+      setVersificationData(data);
+      console.log(`ScriptureScribe: versification mapping loaded`);
+    } catch (e) {
+      console.info("ScriptureScribe: versification-mapping.json not found — versification mapping unavailable.");
+      setVersificationData({});
     }
   }
 

@@ -1,5 +1,11 @@
 import { ScriptureRef } from './parser';
-import mapping from './books/versification-mapping.json';
+
+let mappingData: Record<string, any> | null = null;
+
+/** Called once from main.ts after the file is read from the plugin folder. */
+export function setVersificationData(data: Record<string, any>): void {
+  mappingData = data;
+}
 
 // Simple mapping for book names to abbreviations used in the JSON
 const BOOK_TO_ABBR: Record<string, string> = {
@@ -24,8 +30,10 @@ export function mapToSwete(ref: ScriptureRef): ScriptureRef {
   const abbr = BOOK_TO_ABBR[ref.book];
   if (!abbr) return ref;
 
+  if (!mappingData) return ref;
+
   const key = `${abbr}.${ref.chapter}:${ref.verseStart}`;
-  const mapped = (mapping as any).eng2grk[key];
+  const mapped = (mappingData as any).eng2grk[key];
   
   if (!mapped || mapped.includes("NotExist") || mapped.includes("Absent")) {
     return ref;
