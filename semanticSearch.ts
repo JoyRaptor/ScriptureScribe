@@ -1,0 +1,387 @@
+// src/semanticSearch.ts
+//
+// Three-tier semantic search — no API key required, works fully offline.
+//
+// ┌─────────────────────────────────────────────────────────────────────────┐
+// │ Tier 1 — Pre-shipped verse vectors (verse-vectors.bin)                  │
+// │   31k KJV verses pre-embedded with all-MiniLM-L6-v2 at build time,     │
+// │   stored as float16 in a compact binary. The query is embedded at       │
+// │   runtime using the same model via Xenova/transformers WASM.            │
+// │                                                                         │
+// │ Tier 2 — Smart Connections bridge (if installed)                        │
+// │   Smart Connections ships its own embedded ONNX runtime. When SC is     │
+// │   present, we borrow its pipeline to embed the query — same model,      │
+// │   zero extra download, no WASM pathing fights.                          │
+// │                                                                         │
+// │ Tier 3 — TF-IDF (always available, zero dependencies)                   │
+// │   Weighted keyword scoring with stop-word filter, proximity bonus,      │
+// │   and phrase detection. Works offline on every device, always.          │
+// └─────────────────────────────────────────────────────────────────────────┘
+
+import { App } from "obsidian";
+import { getKJVText } from "./searchIndex";
+
+// ── Environment Patches for Obsidian ──────────────────────────────────────────
+// These MUST run before @xenova/transformers is imported.
+if (typeof (globalThis as any).__dirname === "undefined") {
+  (globalThis as any).__dirname = "/";
+}
+if (typeof (globalThis as any).process === "undefined") {
+  (globalThis as any).process = { env: { NODE_DEBUG: false } };
+}
+if (!(globalThis as any).process.env) {
+  (globalThis as any).process.env = {};
+}
+(globalThis as any).process.env.TRANSFORMERS_CACHE = "/";
+(globalThis as any).process.env.XENOVA_CACHE       = "/";
+if (typeof (globalThis as any).process.cwd !== "function") {
+  (globalThis as any).process.cwd = () => "/";
+}
+// Force lib to think it's in a browser, not Node, to avoid "path" module crashes
+if (!(globalThis as any).process.release) {
+  (globalThis as any).process.release = { name: "browser" };
+} else {
+  (globalThis as any).process.release.name = "browser";
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let verseRefs:    string[]     | null = null;
+let verseVectors: Float32Array | null = null;
+let dims = 384;
+
+// Runtime embedding pipeline — one function that wraps whichever backend loads
+let embeddingPipeline: ((text: string) => Promise<Float32Array>) | null = null;
+let pipelineSource: "xenova" | "smart-connections" | "none" = "none";
+let pipelineLoadAttempted = false;
+import { SearchResult } from "./searchIndex";
+
+export interface SemanticResult {
+  ref:   string;
+  score: number;
+  source: "Vector" | "Link" | "Keyword";
+}
+
+// ── Ref normaliser ────────────────────────────────────────────────────────────
+// verse-vectors.bin was built from a KJV JSON that uses Roman-numeral book
+// names ("I Samuel", "II Kings", "III John") and "Revelation of John".
+// The kjvStore populated by fetcher.setKJVData normalises to Arabic-numeral
+// canonical forms ("1 Samuel", "2 Kings", "3 John", "Revelation").
+// We must re-normalise here so getKJVText() and parseScriptureRefs() both work.
+const _ROMAN_TO_ARABIC: Array<[RegExp, string]> = [
+  [/^III\s+/, "3 "],
+  [/^II\s+/,  "2 "],
+  [/^I\s+/,   "1 "],
+];
+const _LONG_ALIASES: Array<[RegExp, string]> = [
+  [/^Revelation of John\s/, "Revelation "],
+  [/^Song of Songs\s/,      "Song of Solomon "],
+];
+
+function normalizeVerseRef(ref: string): string {
+  let r = ref;
+  for (const [re, rep] of _LONG_ALIASES) { if (re.test(r)) { r = r.replace(re, rep); break; } }
+  for (const [re, rep] of _ROMAN_TO_ARABIC) { if (re.test(r)) { r = r.replace(re, rep); break; } }
+  return r;
+}
+
+
+// ── Float16 decoder ───────────────────────────────────────────────────────────
+
+function decodeFloat16(f16: number): number {
+  const sign = (f16 >> 15) & 0x1;
+  const exp  = (f16 >> 10) & 0x1f;
+  const mant =  f16        & 0x3ff;
+  if (exp === 0)  return (sign ? -1 : 1) * Math.pow(2, -14) * (mant / 1024);
+  if (exp === 31) return mant ? NaN : (sign ? -Infinity : Infinity);
+  return (sign ? -1 : 1) * Math.pow(2, exp - 15) * (1 + mant / 1024);
+}
+
+// ── Load pre-shipped verse vectors ────────────────────────────────────────────
+
+export async function loadVerseVectors(app: App, pluginDir: string): Promise<void> {
+  if (verseVectors) return;
+  try {
+    const binPath = `${pluginDir}/verse-vectors.bin`;
+    if (!await app.vault.adapter.exists(binPath)) {
+      console.warn("ScriptureScribe: verse-vectors.bin not found — semantic search falls back to TF-IDF.");
+      return;
+    }
+    const buf = await app.vault.adapter.readBinary(binPath);
+    const dv  = new DataView(buf);
+    const verseCount  = dv.getUint32(0, true);
+    dims              = dv.getUint32(4, true);
+    const refsLen     = dv.getUint32(8, true);
+    verseRefs         = JSON.parse(new TextDecoder().decode(buf.slice(12, 12 + refsLen)));
+    const vectorStart = 12 + refsLen;
+    const f16         = new Uint16Array(buf, vectorStart);
+    verseVectors      = new Float32Array(verseCount * dims);
+    for (let i = 0; i < f16.length; i++) verseVectors[i] = decodeFloat16(f16[i]);
+    console.log(`ScriptureScribe: loaded ${verseCount} verse vectors (${dims}d float16→f32)`);
+  } catch (e) {
+    console.warn("ScriptureScribe: verse vector load failed", e);
+  }
+}
+
+// ── Cosine similarity search against loaded vectors ───────────────────────────
+
+async function vectorSearch(query: string, topK: number): Promise<SemanticResult[] | null> {
+  if (!verseVectors || !verseRefs || !embeddingPipeline) return null;
+  try {
+    const queryVec = await embeddingPipeline(query);
+    if (!queryVec || queryVec.length !== dims) return null;
+
+    const N = verseRefs.length;
+    const scoreArr = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      let dot = 0;
+      const off = i * dims;
+      for (let d = 0; d < dims; d++) dot += queryVec[d] * verseVectors[off + d];
+      scoreArr[i] = dot;
+    }
+
+    const indices = Array.from({ length: N }, (_, i) => i);
+    indices.sort((a, b) => scoreArr[b] - scoreArr[a]);
+    return indices.slice(0, topK).map(i => ({
+      ref:   normalizeVerseRef(verseRefs![i]),
+      score: scoreArr[i],
+      source: "Vector" as const,
+    }));
+  } catch (e) {
+    console.warn("ScriptureScribe: vector search error", e);
+    return null;
+  }
+}
+
+// ── Smart Connections bridge ──────────────────────────────────────────────────
+//
+// SC ships and manages its own ONNX runtime, which already works inside
+// Obsidian's environment. We borrow its embed_model rather than loading
+// a second copy of transformers.
+//
+// SC ≥ 2.x exposes: app.plugins.plugins["smart-connections"].env.embed_model
+
+async function trySmartConnectionsPipeline(app: App): Promise<boolean> {
+  try {
+    const sc = (app as any).plugins?.plugins?.["smart-connections"];
+    if (!sc) return false;
+
+    const env = sc.env ?? sc.smart_env;
+    if (!env) return false;
+
+    // Different SC versions expose the model under different property names
+    const embedModel =
+      env.embed_model      ??
+      env.embeddings_model ??
+      env.embedding_model  ??
+      env.model;
+
+    if (!embedModel || typeof embedModel.embed !== "function") return false;
+
+    // Sanity check — actually embed something
+    const testVec = await embedModel.embed("test");
+    const testArr = testVec instanceof Float32Array ? testVec : new Float32Array(testVec ?? []);
+    if (testArr.length === 0) return false;
+
+    // If SC's model dims differ from our pre-shipped vectors, cosine search
+    // against verse-vectors.bin would produce garbage. Clear stored vecs so
+    // we fall through to TF-IDF after embedding — the pipeline itself is still
+    // useful for Smart Connections' own vault-note queries.
+    if (verseVectors && testArr.length !== dims) {
+      console.info(
+        `ScriptureScribe: Smart Connections model (${testArr.length}d) ≠ ` +
+        `verse-vectors.bin (${dims}d). Cosine search disabled; TF-IDF active.`
+      );
+      verseVectors = null;
+    }
+
+    embeddingPipeline = async (text: string) => {
+      const v = await embedModel.embed(text);
+      return v instanceof Float32Array ? v : new Float32Array(v);
+    };
+    pipelineSource = "smart-connections";
+    console.log("ScriptureScribe: using Smart Connections embedding model for semantic search");
+    return true;
+  } catch (e) {
+    console.info("ScriptureScribe: Smart Connections bridge failed —", (e as Error).message);
+    return false;
+  }
+}
+
+// ── Xenova/transformers — primary standalone runtime ──────────────────────────
+//
+// Works on desktop Obsidian when the plugin has network access for the initial
+// WASM + model download. Uses jsDelivr CDN for WASM runtime so no local file
+// serving is required. Mobile Obsidian often blocks this due to sandbox
+// restrictions — SC bridge or TF-IDF handles those cases.
+
+async function tryXenovaPipeline(): Promise<boolean> {
+  try {
+    const mod = await import("@xenova/transformers");
+    const { pipeline: createPipeline, env } = (mod as any).default ?? mod;
+
+    if (!env) throw new Error("transformers env missing — module loaded incorrectly");
+
+    // Safely set WASM paths and disable proxies (important for Obsidian)
+    // We use a safe-access pattern to avoid "Cannot read properties of undefined"
+    const backends = (env as any).backends;
+    if (backends?.onnx) {
+        backends.onnx.logLevel = "error";
+        if (backends.onnx.wasm) {
+            backends.onnx.wasm.proxy = false;
+            backends.onnx.wasm.numThreads = 1;
+            const CDN_BASE = "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.0/dist/";
+            backends.onnx.wasm.wasmPaths = CDN_BASE;
+        }
+    }
+
+    // Pre-warm the cache by attempting to load the pipeline
+    const pipe = await createPipeline(
+      "feature-extraction",
+      "Xenova/all-MiniLM-L6-v2",
+      { quantized: true }
+    );
+
+    // Confirm the model actually works before committing
+    const testOut = await pipe("test", { pooling: "mean", normalize: true });
+    if (!testOut?.data || testOut.data.length === 0) throw new Error("empty test output");
+
+    embeddingPipeline = async (text: string) => {
+      const out = await pipe(text, { pooling: "mean", normalize: true });
+      return out.data as Float32Array;
+    };
+    pipelineSource = "xenova";
+    console.log("ScriptureScribe: Xenova/transformers embedding model loaded");
+    return true;
+  } catch (e) {
+    console.info(
+      "ScriptureScribe: Xenova/transformers unavailable (V4-patch) —",
+      (e as Error).message
+    );
+    return false;
+  }
+}
+
+// ── Pipeline loader: try sources in order ────────────────────────────────────
+
+export async function loadEmbeddingPipeline(app?: App): Promise<void> {
+  // If we already have a high-quality pipeline, don't re-probe
+  if (pipelineSource === "xenova" || pipelineSource === "smart-connections") return;
+
+  // 1. Smart Connections — already running, no download, no WASM fight
+  if (app && await trySmartConnectionsPipeline(app)) return;
+
+  // Only try Xenova once to avoid repeated crashes
+  if (pipelineLoadAttempted) return;
+  pipelineLoadAttempted = true;
+
+  // 2. Xenova/transformers — standalone, needs CDN on first use
+  if (await tryXenovaPipeline()) return;
+
+  // 3. TF-IDF — no pipeline; handled directly in semanticVerseSearch
+  pipelineSource = "none";
+  console.info("ScriptureScribe: no embedding runtime available — TF-IDF active for concept search.");
+}
+
+/** Called from main.ts after KJV data loads so TF-IDF always has verse refs */
+export function setVerseRefs(refs: string[]): void {
+  if (!verseRefs) verseRefs = refs;
+}
+
+/** Returns active pipeline source — useful for Settings UI status display */
+export function getEmbeddingSource(): "xenova" | "smart-connections" | "none" {
+  return pipelineSource;
+}
+
+// ── Tier 3: TF-IDF keyword search ────────────────────────────────────────────
+
+const STOP = new Set([
+  "the","and","for","are","but","not","you","all","can","her","was","one",
+  "our","out","day","get","has","him","his","how","its","let","men","new",
+  "now","old","see","two","way","who","did","may","thy","thee","thou",
+  "hath","doth","that","this","with","from","they","have","been","will",
+  "said","unto","into","upon","shall","them","then","when","were","your",
+  "also","even","which","there","these","those","their","about","after",
+  "over","such","more","like","than","only","just","what","both","some",
+  "very","much","come","came","went","give","take","made","make","know",
+  "through","without","before","against","between","because","therefore",
+]);
+
+function tfidfSearch(query: string, topK: number): SemanticResult[] {
+  const queryWords = query
+    .toLowerCase()
+    .replace(/[^a-z\s'-]/g, " ")
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOP.has(w));
+
+  if (!queryWords.length) return [];
+
+  // Use verseRefs from vectors bin if available, otherwise we have no list.
+  // In the no-vectors case, tfidfSearch won't be called unless verseRefs was
+  // populated via setVerseRefs() from main.ts.
+  const refs = verseRefs;
+  if (!refs || refs.length === 0) return [];
+
+  const scores: Array<[string, number]> = [];
+
+  for (const ref of refs) {
+    const text = getKJVText(ref);
+    if (!text) continue;
+    const lower = text.toLowerCase();
+    let score = 0;
+
+    for (const word of queryWords) {
+      if (lower.includes(word)) {
+        score += 1.0;
+        const re = new RegExp(`\\b${word.replace(/'/g, "\\'")}`, "g");
+        const m  = lower.match(re);
+        if (m) score += m.length * 0.4;
+      }
+    }
+
+    if (queryWords.length >= 2) {
+      if (queryWords.every(w => lower.includes(w))) score *= 1.6;
+      if (score > 0) {
+        const positions = queryWords.map(w => lower.indexOf(w)).filter(p => p >= 0);
+        if (positions.length >= 2) {
+          const span = Math.max(...positions) - Math.min(...positions);
+          if (span < 80) score *= 1.3;
+        }
+      }
+    }
+
+    if (score > 0) scores.push([ref, score]);
+  }
+
+  scores.sort((a, b) => b[1] - a[1]);
+  const max = scores[0]?.[1] ?? 1;
+  return scores.slice(0, topK).map(([ref, score]) => ({
+    ref: normalizeVerseRef(ref),
+    score: score / max,
+    source: "Keyword" as const
+  }));
+}
+
+// ── Public search entry point ─────────────────────────────────────────────────
+
+export async function semanticVerseSearch(
+  query: string,
+  topK  = 10,
+  app?:  App,
+): Promise<SemanticResult[]> {
+  // Ensure we've tried to load a pipeline (allows lazy-loading SC bridge)
+  if (app) await loadEmbeddingPipeline(app);
+  // Lazy pipeline init on first search call
+  if (!pipelineLoadAttempted) {
+    await loadEmbeddingPipeline(app);
+  }
+
+  // Tier 1 + 2: vector cosine (requires pre-shipped vectors + working pipeline)
+  if (embeddingPipeline && verseVectors) {
+    const vResults = await vectorSearch(query, topK);
+    if (vResults && vResults.length > 0) return vResults;
+  }
+
+  // Tier 3: TF-IDF keyword scoring (always works)
+  return tfidfSearch(query, topK);
+}
