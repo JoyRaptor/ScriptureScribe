@@ -423,8 +423,9 @@ export default class ScriptureScribePlugin extends Plugin {
         console.info(`ScriptureScribe: ${file} not found — ${label} will use online API.`);
       }
       // Yield to main thread to allow garbage collection of large JSON strings
-      // This prevents Out-Of-Memory crashes on mobile devices.
-      await new Promise(r => setTimeout(r, 250));
+      // This prevents Out-Of-Memory crashes on mobile devices. Desktop has the
+      // headroom to skip the long pause — a short yield is enough there.
+      await new Promise(r => setTimeout(r, Platform.isMobile ? 250 : 25));
     }
   }
 

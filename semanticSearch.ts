@@ -329,7 +329,9 @@ export async function loadEmbeddingPipeline(app?: App): Promise<void> {
 
 /** Called from main.ts after KJV data loads so TF-IDF always has verse refs */
 export function setVerseRefs(refs: string[]): void {
-  if (!verseRefs) verseRefs = refs;
+  // Ignore empty lists: if this fires before the KJV finishes loading, an
+  // accepted [] would lock TF-IDF into zero results for the whole session.
+  if ((!verseRefs || verseRefs.length === 0) && refs.length > 0) verseRefs = refs;
 }
 
 /** Returns active pipeline source — useful for Settings UI status display */

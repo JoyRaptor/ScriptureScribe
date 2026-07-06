@@ -30,10 +30,13 @@ export function mapToSwete(ref: ScriptureRef): ScriptureRef {
   const abbr = BOOK_TO_ABBR[ref.book];
   if (!abbr) return ref;
 
-  if (!mappingData) return ref;
+  // Guard the table, not just the object: the missing-file fallback injects
+  // {} and a bare .eng2grk[key] access would throw on every LXX lookup.
+  const table = (mappingData as any)?.eng2grk;
+  if (!table) return ref;
 
   const key = `${abbr}.${ref.chapter}:${ref.verseStart}`;
-  const mapped = (mappingData as any).eng2grk[key];
+  const mapped = table[key];
   
   if (!mapped || mapped.includes("NotExist") || mapped.includes("Absent")) {
     return ref;
