@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<!-- ss-starter v2 — the plugin refreshes this file on updates. Delete this line, or save a copy under a new name, to keep your own edits. -->
+<head>
+<meta charset="utf-8">
+<title>Velvet Rainbow — highlighter card in the Royal Velvet theme colours</title>
+<meta name="ss-in-ms"   content="1400">
+<meta name="ss-out-ms"  content="800">
+<meta name="ss-swap-ms" content="320">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@600;700&display=swap">
+<style>
+  @property --ang   { syntax: "<angle>";  initial-value: 0deg; inherits: false; }
+  @property --drift { syntax: "<number>"; initial-value: 0;     inherits: true;  }
+  :root {
+    --ink:   hsl(235 14% 14%);
+    --paper: hsl(60 30% 96%);
+    --ease:  cubic-bezier(.22, .8, .24, 1);
+    --spring: cubic-bezier(.34, 1.45, .5, 1);
+    --rainbow: hsl(200 100% 75%), hsl(250 100% 75%), hsl(285 100% 75%), hsl(330 100% 75%),
+               hsl(10 100% 75%), hsl(60 100% 75%), hsl(115 100% 75%), hsl(170 100% 75%), hsl(200 100% 75%);
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+
+  .stage {
+    position: fixed; inset: 0; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity .5s cubic-bezier(.4, 0, .2, 1) .1s;
+    background:
+      radial-gradient(90% 70% at 20% 0%, hsl(250 30% 22%) 0%, transparent 60%),
+      linear-gradient(135deg, hsl(235 15% 10%) 0%, hsl(235 17% 18%) 50%, hsl(240 20% 9%) 100%);
+    animation: drift 45s linear infinite;               /* colours flow slowly while held */
+  }
+  @keyframes drift { to { --drift: 360; } }
+  html[data-state="in"] .stage, html[data-state="hold"] .stage { opacity: 1; transition: opacity .7s cubic-bezier(.3, 0, .2, 1); }
+  html[data-state="idle"] *, html[data-state="idle"] *::before, html[data-state="idle"] *::after {
+    animation-play-state: paused !important;
+  }
+
+  /* Rainbow glow behind the card — bursts on entry, then breathes */
+  .glow {
+    position: absolute; left: 50%; top: 50%; width: 130vmin; height: 86vmin; margin: -43vmin 0 0 -65vmin;
+    border-radius: 50%; filter: blur(95px); opacity: 0; transform: scale(.6);
+    background: conic-gradient(from var(--ang), var(--rainbow));
+    animation: spin 24s linear infinite, pulse 6s ease-in-out infinite alternate;
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  html[data-state="in"] .glow, html[data-state="hold"] .glow { opacity: .3; transform: none; transition: opacity 1.6s ease .1s, transform 1.8s var(--ease) .1s; }
+  @keyframes spin  { to { --ang: 360deg; } }
+  @keyframes pulse { from { filter: blur(95px) brightness(.85); } to { filter: blur(80px) brightness(1.2); } }
+
+  .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.5) 100%); }
+
+  /* Twinkling stars */
+  .stars i {
+    position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s);
+    background: hsl(var(--c) 100% 88%); opacity: 0;
+    clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+    filter: drop-shadow(0 0 6px hsl(var(--c) 100% 75%));
+    animation: twinkle var(--d) ease-in-out var(--dl) infinite;
+  }
+  @keyframes twinkle { 0%, 100% { opacity: 0; transform: scale(.3) rotate(0); } 50% { opacity: .95; transform: scale(1) rotate(45deg); } }
+
+  /* ── Card ───────────────────────────────────────────────────────────── */
+  .float { animation: float 7s ease-in-out infinite alternate; }
+  @keyframes float { from { transform: translateY(-.7vh); } to { transform: translateY(.7vh); } }
+
+  .card {
+    position: relative; box-sizing: border-box; padding: 5.2vh 4.4vw 4.4vh;
+    border-radius: 2.4vmin; text-align: center;
+    background: linear-gradient(160deg, hsla(235,15%,17%,.95), hsla(235,17%,12%,.97));
+    box-shadow: 0 4vh 12vh rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.07);
+    opacity: 0; transform: translateY(7vh) scale(.9) rotate(-1.2deg);
+    transition: opacity .4s ease, transform .5s ease;
+  }
+  html[data-state="in"] .card, html[data-state="hold"] .card {
+    opacity: 1; transform: none; transition: opacity .6s ease .05s, transform 1.1s var(--spring) .05s;
+  }
+  .card::before {                                         /* travelling rainbow hairline */
+    content: ""; position: absolute; inset: -2px; border-radius: inherit; padding: 2px;
+    background: conic-gradient(from var(--ang), var(--rainbow));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    opacity: .9; animation: spin 7s linear infinite; pointer-events: none;
+  }
+
+  .ref {
+    font: 700 clamp(14px, 2.7vh, 32px)/1 Inter, system-ui, sans-serif;
+    letter-spacing: .8em; padding-left: .8em; text-transform: uppercase;
+    color: hsl(calc(10 + var(--drift)) 100% 76%);
+    opacity: 0; transform: translateY(-1.6vh);
+    transition: opacity .3s ease, transform .3s ease, letter-spacing .3s ease;
+  }
+  html[data-state="in"] .ref, html[data-state="hold"] .ref {
+    opacity: 1; transform: none; letter-spacing: .5em; padding-left: .5em;
+    transition: opacity .8s ease .45s, transform .9s var(--ease) .45s, letter-spacing 1.4s var(--ease) .45s, padding-left 1.4s var(--ease) .45s;
+  }
+  .rule {
+    height: 3px; width: 0; margin: 2.2vh auto 3.4vh; border-radius: 2px;
+    background: linear-gradient(90deg, var(--rainbow), var(--rainbow)); background-size: 200% 100%;
+    animation: slide 5s linear infinite; transition: width .3s ease;
+  }
+  html[data-state="in"] .rule, html[data-state="hold"] .rule { width: 18vw; transition: width 1s var(--ease) .55s; }
+  @keyframes slide { to { background-position: 200% 0; } }
+
+  [data-ss="text-box"] { width: min(72vw, 1180px); height: 42vh; display: flex; align-items: center; justify-content: center; }
+  [data-ss="text"] {
+    width: 100%; font-family: Lora, Georgia, serif; font-weight: 600; line-height: 1.62;
+    color: var(--ink); text-wrap: balance; transition: opacity .3s ease;
+  }
+  html[data-swapping] [data-ss="text"] { opacity: 0; }
+
+  /* Each word is a highlighter swipe. Colours drift; words "boil" like stop-motion. */
+  .w {
+    display: inline-block; padding: .04em .125em; margin: 0 -.14em; line-height: 1.3; color: var(--ink);
+    background: linear-gradient(90deg, hsl(calc(var(--h) + var(--drift)) 95% 79%), hsl(calc(var(--h2) + var(--drift)) 95% 79%));
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path .25s ease;
+    animation: boil var(--bd, .56s) step-end infinite; animation-delay: calc(var(--i) * -.071s);
+  }
+  .w.pre { clip-path: inset(0 100% 0 0) !important; transition: none !important; }
+  html[data-state="in"] .w, html[data-state="hold"] .w {
+    clip-path: inset(-4% -1% -4% -1%);
+    transition: clip-path .45s var(--ease); transition-delay: calc(var(--i) * var(--step, 40ms) + 420ms);
+  }
+  @keyframes boil {
+    0%   { transform: translate(0, 0) rotate(0); }
+    25%  { transform: translate(.012em, -.02em) rotate(.45deg); }
+    50%  { transform: translate(-.01em, .015em) rotate(-.4deg); }
+    75%  { transform: translate(.008em, .02em) rotate(.25deg); }
+  }
+
+  .ver {
+    margin-top: 3vh; display: inline-block; padding: .55em 1.3em .5em;
+    font: 700 clamp(10px, 1.7vh, 18px)/1 Inter, system-ui, sans-serif; letter-spacing: .4em; text-indent: .4em;
+    color: hsl(235 12% 72%); border: 1px solid hsl(235 12% 34%); border-radius: 99px;
+    opacity: 0; transition: opacity .3s ease;
+  }
+  html[data-state="in"] .ver, html[data-state="hold"] .ver { opacity: 1; transition: opacity 1s ease 1.3s; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="glow"></div>
+  <div class="stars"></div>
+  <div class="vignette"></div>
+  <div class="float">
+    <div class="card">
+      <div class="ref" data-ss="reference"></div>
+      <div class="rule"></div>
+      <div data-ss="text-box"><div data-ss="text">&nbsp;</div></div>
+      <div class="ver" data-ss="version"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  if (document.fonts && document.fonts.load) {
+    document.fonts.load('600 40px Lora');
+    document.fonts.load('700 20px Inter');
+  }
+  var stars = document.querySelector(".stars");
+  var HUES = [200, 250, 285, 330, 10, 60, 115, 170];
+  for (var k = 0; k < 18; k++) {
+    var st = document.createElement("i");
+    st.style.cssText =
+      "--x:" + (Math.random() * 96 + 2).toFixed(1) + "%;--y:" + (Math.random() * 90 + 4).toFixed(1) + "%;" +
+      "--s:" + (10 + Math.random() * 20).toFixed(0) + "px;--c:" + HUES[k % HUES.length] + ";" +
+      "--d:" + (3 + Math.random() * 4).toFixed(1) + "s;--dl:-" + (Math.random() * 7).toFixed(1) + "s";
+    stars.appendChild(st);
+  }
+
+  // Blue → purple → pink → red → yellow → green → teal (the theme's rainbow order).
+  var STOPS = [200, 250, 285, 330, 370, 420, 475, 530];
+  function hueAt(t) {
+    var p = Math.max(0, Math.min(0.9999, t)) * (STOPS.length - 1);
+    var i = Math.floor(p), f = p - i;
+    return Math.round(STOPS[i] + (STOPS[i + 1] - STOPS[i]) * f);
+  }
+
+  window.addEventListener("ss:content", function () {
+    var el = document.querySelector('[data-ss="text"]');
+    if (!el) return;
+    var words = (el.textContent || "").split(/\s+/).filter(Boolean);
+    var n = words.length;
+    var span = Math.min(1, n / 16);              // short verses use a shorter slice of the rainbow
+    el.textContent = "";
+    el.style.setProperty("--step", Math.min(50, 900 / Math.max(n, 1)).toFixed(1) + "ms");
+    var made = [];
+    words.forEach(function (w, idx) {
+      var s = document.createElement("span");
+      s.className = "w pre";                       // start hidden, even when swapping verses mid-hold
+      s.style.setProperty("--i", idx);
+      s.style.setProperty("--h",  hueAt(idx / n * span));
+      s.style.setProperty("--h2", hueAt((idx + 1) / n * span));
+      s.style.setProperty("--bd", (0.5 + (idx % 5) * 0.035).toFixed(3) + "s");
+      s.textContent = w;
+      el.appendChild(s);
+      if (idx < n - 1) el.appendChild(document.createTextNode(" "));
+      made.push(s);
+    });
+    // Reveal on the next frames so the swipe transition always runs.
+    requestAnimationFrame(function () { requestAnimationFrame(function () {
+      made.forEach(function (s) { s.classList.remove("pre"); });
+    }); });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import { App, Editor } from "obsidian";
+import type { VerseCard } from "./verseCard";
 import { ScriptureRef, refToString, parseScriptureRefs } from "./parser";
 import { getScripture } from "./fetcher";
 import { embedSingleRef, embedInterlinear, getGlobalEmbedStyle, setGlobalEmbedStyle, setCachedCursorOffset, clearCachedCursorOffset } from "./embedEngine";
@@ -47,6 +48,52 @@ export class ScriptureTooltip {
   private interlinearState: "off" | "MT" | "LXX" = "off";
   private activeTooltipCard: HTMLElement | null = null;
 
+  /** Full-screen verse card (set by the plugin); used instead of the tooltip in Card Mode */
+  card: VerseCard | null = null;
+
+  // ── Card trigger keys (Card Mode can require holding Shift / Ctrl) ──
+  private mods = { shift: false, ctrl: false };
+
+  private get cardEnabled(): boolean {
+    return !!this.card && this.settings.display.cardMode === true;
+  }
+
+  private triggerHeld(): boolean {
+    const t = this.settings.display.cardTrigger ?? "always";
+    return t === "always" || (t === "shift" && this.mods.shift) || (t === "ctrl" && this.mods.ctrl);
+  }
+
+  /** True when a hover right now should become a full-screen card */
+  private get cardModeOn(): boolean {
+    return this.cardEnabled && this.triggerHeld();
+  }
+
+  private syncMods = (e: KeyboardEvent | MouseEvent): void => {
+    if (this.mods.shift === e.shiftKey && this.mods.ctrl === e.ctrlKey) return;
+    this.mods.shift = e.shiftKey;
+    this.mods.ctrl  = e.ctrlKey;
+    this.onModsChanged();
+  };
+  private clearMods = (): void => {
+    if (!this.mods.shift && !this.mods.ctrl) return;
+    this.mods.shift = this.mods.ctrl = false;
+    this.onModsChanged();
+  };
+
+  /** Pressing/releasing the trigger key while hovering swaps tooltip ⇄ card live */
+  private onModsChanged(): void {
+    if (!this.cardEnabled || (this.settings.display.cardTrigger ?? "always") === "always") return;
+    if (this.triggerHeld()) {
+      if (this.currentRef && !this.card!.isVisible()) {
+        this.cancelHide();
+        this.el.style.display = "none";
+        void this.showAsCard(this.currentRef);
+      }
+    } else if (this.card!.isVisible()) {
+      this.card!.hide();
+    }
+  }
+
   private get isOT(): boolean {
     if (!this.currentRef) return false;
     return OT_BOOKS.has(this.currentRef.book);
@@ -68,6 +115,17 @@ export class ScriptureTooltip {
     // handler in main.ts — use bubble phase (no third arg / false) so that
     // button onclick handlers fire first, THEN we stop propagation.
     this.el.addEventListener("click", (e) => e.stopPropagation());
+
+    // Discreet "switch to full-screen card mode" button
+    const cardBtn = this.q<HTMLElement>(".ss-card-btn")!;
+    cardBtn.onclick = (e) => { e.stopPropagation(); void this.setCardMode(true, true); };
+    cardBtn.addEventListener("mouseenter", () => { cardBtn.style.opacity = "1"; });
+    cardBtn.addEventListener("mouseleave", () => { cardBtn.style.opacity = "0.5"; });
+
+    window.addEventListener("keydown", this.syncMods, true);
+    window.addEventListener("keyup", this.syncMods, true);
+    window.addEventListener("mousemove", this.syncMods, true);
+    window.addEventListener("blur", this.clearMods);
   }
 
   // ── Build DOM ─────────────────────────────────────────────────
@@ -115,6 +173,17 @@ export class ScriptureTooltip {
         </div>
 
         <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
+
+          <button class="ss-card-btn" title="Card Mode — show verses as full-screen cards" style="
+            box-sizing:border-box;
+            width:${BTN_H}; height:${BTN_H};
+            padding:0; margin-right:2px;
+            background:transparent; color:var(--text-muted);
+            border:none; border-radius:4px;
+            cursor:pointer; opacity:0.5;
+            display:flex; align-items:center; justify-content:center;
+            transition:opacity 0.15s;
+          "><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"/></svg></button>
 
           <button class="ss-int-btn" title="Interlinear" style="
             box-sizing:border-box;
@@ -241,6 +310,12 @@ export class ScriptureTooltip {
     this.updatePaletteForRef(ref);
     this.applyPaletteToDOM();
 
+    if (this.cardModeOn) {
+      this.el.style.display = "none";
+      await this.showAsCard(ref);
+      return;
+    }
+
     this.resetToVersePanel();
     this.updateIntBtn();
     this.closeDropdowns();
@@ -276,6 +351,41 @@ export class ScriptureTooltip {
     // If interlinear was active from the previous verse, open it immediately
     if (this.interlinearState !== "off") {
       this.openInterlinear(ref);
+    }
+  }
+
+  // ── Card Mode ─────────────────────────────────────────────────
+
+  private async showAsCard(ref: ScriptureRef): Promise<void> {
+    const verse = await getScripture(ref, this.settings);
+    if (this.currentRef !== ref || !this.card) return; // left the verse while fetching
+    this.card.show({
+      key: refToString(ref),
+      reference: refToString(ref),
+      text: verse.text,
+      version: verse.version,
+      book: ref.book,
+      testament: OT_BOOKS.has(ref.book) ? "ot" : "nt",
+      palette: { base: this.P, light: this.PL, mid: this.PM, dark: this.PD },
+    });
+  }
+
+  /**
+   * Switch between tooltip and full-screen card display. `preview` (used by the
+   * tooltip's own toggle button) flashes the card for the verse that was open,
+   * since the mouse is no longer over a link to trigger it.
+   */
+  async setCardMode(on: boolean, preview = false): Promise<void> {
+    const ref = this.currentRef;
+    this.settings.display.cardMode = on;
+    await this.saveSettings();
+    if (on) this.card?.warm(); else this.card?.hide();
+    if (!preview) return;
+    this.hide();
+    if (on && ref) {
+      this.currentRef = ref;
+      await this.showAsCard(ref);
+      this.scheduleHide(2600);
     }
   }
 
@@ -1009,7 +1119,7 @@ export class ScriptureTooltip {
     if (defToggle) defToggle.style.color = this.PX;
   }
 
-  scheduleHide(ms = 400): void {
+  scheduleHide(ms = this.card?.isVisible() ? 120 : 400): void {
     this.cancelHide();
     this.hideTimer = setTimeout(() => this.hide(), ms);
   }
@@ -1021,11 +1131,17 @@ export class ScriptureTooltip {
   hide(): void {
     this.currentRef = null;
     this.el.style.display = "none";
+    this.card?.hide();
     this.closeDropdowns();
     clearCachedCursorOffset();
   }
 
   destroy(): void {
+    window.removeEventListener("keydown", this.syncMods, true);
+    window.removeEventListener("keyup", this.syncMods, true);
+    window.removeEventListener("mousemove", this.syncMods, true);
+    window.removeEventListener("blur", this.clearMods);
+    this.card?.destroy();
     this.el.remove();
   }
 }

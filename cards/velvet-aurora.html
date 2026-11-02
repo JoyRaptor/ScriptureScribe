@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<!-- ss-starter v2 — the plugin refreshes this file on updates. Delete this line, or save a copy under a new name, to keep your own edits. -->
+<head>
+<meta charset="utf-8">
+<title>Velvet Aurora — wispy light show in the Royal Velvet theme colours</title>
+<meta name="ss-in-ms"   content="1600">
+<meta name="ss-out-ms"  content="900">
+<meta name="ss-swap-ms" content="340">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Cinzel:wght@600&display=swap">
+<style>
+  @property --drift { syntax: "<number>"; initial-value: 0; inherits: true; }
+  :root {
+    --ease:  cubic-bezier(.22, .8, .24, 1);
+    --paper: hsl(60 30% 96%);
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+
+  .stage {
+    position: fixed; inset: 0; overflow: hidden; opacity: 0;
+    transition: opacity .6s cubic-bezier(.4, 0, .2, 1) .12s;
+    background:
+      radial-gradient(120% 85% at 50% -10%, hsl(250 38% 24%) 0%, transparent 62%),
+      radial-gradient(100% 80% at 50% 115%, hsl(300 30% 20%) 0%, transparent 58%),
+      linear-gradient(160deg, hsl(235 16% 10%) 0%, hsl(240 18% 15%) 52%, hsl(235 20% 8%) 100%);
+    animation: drift 50s linear infinite;
+  }
+  @keyframes drift { to { --drift: 360; } }
+  html[data-state="in"] .stage, html[data-state="hold"] .stage { opacity: 1; transition: opacity .8s cubic-bezier(.3, 0, .2, 1); }
+  html[data-state="idle"] *, html[data-state="idle"] *::before, html[data-state="idle"] *::after {
+    animation-play-state: paused !important;
+  }
+
+  /* ── Living aurora: four palette blobs that drift, merge and slowly change hue ── */
+  .auroras { position: absolute; inset: 0; animation: hue 80s linear infinite; }
+  @keyframes hue { to { filter: hue-rotate(360deg); } }
+  .a { position: absolute; width: 80vmax; height: 80vmax; border-radius: 50%; filter: blur(80px); mix-blend-mode: screen; opacity: .42; }
+  .a1 { left: -28vmax; top: -42vmax; background: radial-gradient(closest-side, hsl(200 100% 66% / .85), transparent); animation: d1 28s ease-in-out infinite alternate; }
+  .a2 { right: -34vmax; top: -30vmax; background: radial-gradient(closest-side, hsl(285 100% 68% / .8), transparent); animation: d2 34s ease-in-out infinite alternate; }
+  .a3 { left: -26vmax; bottom: -48vmax; background: radial-gradient(closest-side, hsl(330 100% 68% / .7), transparent); animation: d2 30s ease-in-out infinite alternate-reverse; }
+  .a4 { right: -30vmax; bottom: -46vmax; background: radial-gradient(closest-side, hsl(115 90% 62% / .55), transparent); animation: d1 38s ease-in-out infinite alternate-reverse; }
+  @keyframes d1 { to { transform: translate(16vmax, 12vmax) scale(1.2) rotate(25deg); } }
+  @keyframes d2 { to { transform: translate(-15vmax, 10vmax) scale(1.14) rotate(-22deg); } }
+
+  .rays {
+    position: absolute; left: 50%; top: 50%; width: 220vmax; height: 220vmax; margin: -110vmax 0 0 -110vmax;
+    opacity: .2; mix-blend-mode: screen;
+    background: repeating-conic-gradient(from 0deg, transparent 0deg, hsl(60 100% 90% / .17) 3deg, transparent 9deg, transparent 24deg);
+    -webkit-mask-image: radial-gradient(closest-side, #000 10%, transparent 70%);
+            mask-image: radial-gradient(closest-side, #000 10%, transparent 70%);
+    animation: spin 170s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .motes i {
+    position: absolute; bottom: -12px; left: var(--x); width: var(--s); height: var(--s); border-radius: 50%;
+    background: hsl(var(--c) 100% 88%); opacity: 0; box-shadow: 0 0 calc(var(--s) * 3) hsl(var(--c) 100% 75% / .9);
+    animation: rise var(--d) linear var(--dl) infinite;
+  }
+  @keyframes rise {
+    0% { transform: translate(0, 0); opacity: 0; } 12% { opacity: var(--o); } 85% { opacity: var(--o); }
+    100% { transform: translate(var(--dx), -112vh); opacity: 0; }
+  }
+  .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(4,3,16,.7) 100%); }
+
+  /* ── Frame draws outward from the centre line; colour drifts around the wheel ── */
+  .frame {
+    position: absolute; inset: 4.6vh 3.2vw; box-sizing: border-box;
+    border: 1px solid hsl(calc(250 + var(--drift)) 100% 82% / .55);
+    clip-path: inset(0 50% 0 50%); transition: clip-path .55s cubic-bezier(.5, 0, .7, 0);
+    box-shadow: inset 0 0 90px hsl(calc(250 + var(--drift)) 100% 70% / .14);
+  }
+  .frame.inner { inset: 6.6vh 4.7vw; border-color: hsl(calc(330 + var(--drift)) 100% 82% / .25); box-shadow: none; }
+  html[data-state="in"] .frame, html[data-state="hold"] .frame { clip-path: inset(0 0 0 0); transition: clip-path 1.4s cubic-bezier(.65, 0, .2, 1) .3s; }
+  html[data-state="in"] .frame.inner, html[data-state="hold"] .frame.inner { transition-delay: .5s; }
+  .dia {
+    position: absolute; width: 9px; height: 9px; transform: translate(-50%, -50%) rotate(45deg) scale(0); opacity: 0;
+    background: hsl(calc(var(--c) + var(--drift)) 100% 82%); box-shadow: 0 0 14px hsl(calc(var(--c) + var(--drift)) 100% 72% / .9);
+    transition: transform .3s ease, opacity .3s ease;
+  }
+  .dia.tl { --c: 200; left: 3.2vw; top: 4.6vh; } .dia.tr { --c: 285; left: calc(100% - 3.2vw); top: 4.6vh; }
+  .dia.bl { --c: 115; left: 3.2vw; top: calc(100% - 4.6vh); } .dia.br { --c: 330; left: calc(100% - 3.2vw); top: calc(100% - 4.6vh); }
+  html[data-state="in"] .dia, html[data-state="hold"] .dia {
+    transform: translate(-50%, -50%) rotate(45deg) scale(1); opacity: 1; transition: transform .7s var(--ease) 1.5s, opacity .7s ease 1.5s;
+  }
+
+  /* ── Content ───────────────────────────────────────────────────────── */
+  .content {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+    animation: breathe 14s ease-in-out infinite alternate;
+  }
+  @keyframes breathe { from { transform: scale(1); } to { transform: scale(1.014); } }
+
+  .orn { display: flex; align-items: center; gap: 1.1vw; margin-bottom: 3.2vh; opacity: 0; transform: scaleX(.3); transition: opacity .35s ease, transform .35s ease; }
+  .orn span { display: block; width: 7vw; height: 1px; background: linear-gradient(90deg, transparent, hsl(calc(285 + var(--drift)) 100% 82%)); }
+  .orn span:last-child { transform: scaleX(-1); }
+  .orn b { width: 9px; height: 9px; transform: rotate(45deg); background: hsl(calc(330 + var(--drift)) 100% 84%); box-shadow: 0 0 16px hsl(calc(330 + var(--drift)) 100% 72%); }
+  html[data-state="in"] .orn, html[data-state="hold"] .orn { opacity: 1; transform: none; transition: opacity 1s ease .55s, transform 1.1s var(--ease) .55s; }
+
+  [data-ss="text-box"] { position: relative; width: min(78vw, 1280px); height: 44vh; display: flex; align-items: center; justify-content: center; }
+  [data-ss="text"] {
+    width: 100%; font-family: Lora, Georgia, serif; font-weight: 600; line-height: 1.3; color: var(--paper);
+    text-wrap: balance; transition: opacity .3s ease;
+  }
+  html[data-swapping] [data-ss="text"] { opacity: 0; }
+  .w {
+    display: inline-block; opacity: 0; transform: translateY(.42em); filter: blur(7px);
+    color: hsl(calc(var(--h) + var(--drift)) 100% 85%);
+    text-shadow: 0 0 .5em hsl(calc(var(--h) + var(--drift)) 100% 68% / .55), 0 1px 2px rgba(0,0,0,.5);
+    transition: opacity .35s ease, transform .35s ease, filter .35s ease;
+  }
+  .w.pre { opacity: 0 !important; transform: translateY(.42em) !important; filter: blur(7px) !important; transition: none !important; }
+  html[data-state="in"] .w, html[data-state="hold"] .w {
+    opacity: 1; transform: none; filter: blur(0);
+    transition: opacity .8s ease, transform .9s var(--ease), filter .8s ease;
+    transition-delay: calc(var(--i) * var(--step, 40ms) + 650ms);
+  }
+
+  .ref {
+    margin-top: 3.4vh; font: 600 clamp(14px, 2.6vh, 30px)/1 Cinzel, Georgia, serif; letter-spacing: .85em; padding-left: .85em; text-transform: uppercase;
+    background: linear-gradient(100deg, hsl(200 100% 80%), hsl(285 100% 82%), hsl(330 100% 82%), hsl(10 100% 82%), hsl(60 100% 85%), hsl(115 100% 80%), hsl(200 100% 80%));
+    background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+    opacity: 0; transform: translateY(14px); transition: opacity .3s ease, transform .3s ease, letter-spacing .4s ease;
+    animation: flow 9s linear infinite;
+  }
+  @keyframes flow { to { background-position: 300% 0; } }
+  html[data-state="in"] .ref, html[data-state="hold"] .ref {
+    opacity: 1; transform: none; letter-spacing: .42em; padding-left: .42em;
+    transition: opacity 1s ease 1.3s, transform 1.1s var(--ease) 1.3s, letter-spacing 1.8s var(--ease) 1.3s, padding-left 1.8s var(--ease) 1.3s;
+  }
+  .ver {
+    margin-top: 1.6vh; font: 600 clamp(10px, 1.6vh, 18px)/1 Cinzel, Georgia, serif; letter-spacing: .5em; padding-left: .5em;
+    color: hsl(235 14% 72% / .7); opacity: 0; transition: opacity .3s ease;
+  }
+  html[data-state="in"] .ver, html[data-state="hold"] .ver { opacity: 1; transition: opacity 1.2s ease 1.8s; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="auroras"><div class="a a1"></div><div class="a a2"></div><div class="a a3"></div><div class="a a4"></div></div>
+  <div class="rays"></div>
+  <div class="motes"></div>
+  <div class="vignette"></div>
+  <div class="frame"></div><div class="frame inner"></div>
+  <i class="dia tl"></i><i class="dia tr"></i><i class="dia bl"></i><i class="dia br"></i>
+
+  <div class="content">
+    <div class="orn"><span></span><b></b><span></span></div>
+    <div data-ss="text-box"><div data-ss="text">&nbsp;</div></div>
+    <div class="ref" data-ss="reference"></div>
+    <div class="ver" data-ss="version"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var HUES = [200, 250, 285, 330, 10, 60, 115, 170];
+  var motes = document.querySelector(".motes");
+  for (var i = 0; i < 38; i++) {
+    var m = document.createElement("i");
+    m.style.cssText =
+      "--x:" + (Math.random() * 100).toFixed(1) + "%;--s:" + (1.5 + Math.random() * 3.5).toFixed(1) + "px;" +
+      "--c:" + HUES[i % HUES.length] + ";--d:" + (16 + Math.random() * 18).toFixed(1) + "s;" +
+      "--dl:-" + (Math.random() * 34).toFixed(1) + "s;--o:" + (0.35 + Math.random() * 0.55).toFixed(2) + ";" +
+      "--dx:" + ((Math.random() - 0.5) * 18).toFixed(1) + "vw";
+    motes.appendChild(m);
+  }
+  if (document.fonts && document.fonts.load) {
+    document.fonts.load('600 40px Lora');
+    document.fonts.load('600 20px Cinzel');
+  }
+
+  var STOPS = [200, 250, 285, 330, 370, 420, 475, 530];
+  function hueAt(t) {
+    var p = Math.max(0, Math.min(0.9999, t)) * (STOPS.length - 1);
+    var k = Math.floor(p), f = p - k;
+    return Math.round(STOPS[k] + (STOPS[k + 1] - STOPS[k]) * f);
+  }
+
+  window.addEventListener("ss:content", function () {
+    var el = document.querySelector('[data-ss="text"]');
+    if (!el) return;
+    var words = (el.textContent || "").split(/\s+/).filter(Boolean);
+    var n = words.length, span = Math.min(1, n / 16), made = [];
+    el.textContent = "";
+    el.style.setProperty("--step", Math.min(55, 1100 / Math.max(n, 1)).toFixed(1) + "ms");
+    words.forEach(function (w, idx) {
+      var s = document.createElement("span");
+      s.className = "w pre";
+      s.style.setProperty("--i", idx);
+      s.style.setProperty("--h", hueAt((idx + 0.5) / n * span));
+      s.textContent = w;
+      el.appendChild(s);
+      if (idx < n - 1) el.appendChild(document.createTextNode(" "));
+      made.push(s);
+    });
+    requestAnimationFrame(function () { requestAnimationFrame(function () {
+      made.forEach(function (s) { s.classList.remove("pre"); });
+    }); });
+  });
+})();
+</script>
+</body>
+</html>

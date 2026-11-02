@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Obsidian Minimal — quiet card in Obsidian's default dark colours</title>
+<meta name="ss-in-ms"   content="1000">
+<meta name="ss-out-ms"  content="650">
+<meta name="ss-swap-ms" content="260">
+<style>
+  :root {
+    --bg:  #1e1e1e;      /* Obsidian default dark */
+    --ink: #dadada;
+    --mute:#999999;
+    --acc: var(--ss-accent, #a78bfa);
+    --ease: cubic-bezier(.22, .8, .24, 1);
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  .stage {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(80% 70% at 50% 40%, #262626 0%, var(--bg) 70%);
+    opacity: 0; transition: opacity .5s ease .08s;
+  }
+  html[data-state="in"] .stage, html[data-state="hold"] .stage { opacity: 1; transition: opacity .7s ease; }
+
+  .wrap { display: flex; gap: 2.4vw; align-items: stretch; transform: translateY(2vh); opacity: 0; transition: opacity .35s ease, transform .45s ease; }
+  html[data-state="in"] .wrap, html[data-state="hold"] .wrap { transform: none; opacity: 1; transition: opacity .8s ease .2s, transform 1s var(--ease) .2s; }
+
+  .bar { width: 4px; border-radius: 2px; background: var(--acc); transform: scaleY(0); transform-origin: top; transition: transform .3s ease; }
+  html[data-state="in"] .bar, html[data-state="hold"] .bar { transform: none; transition: transform .9s var(--ease) .3s; }
+
+  .col { display: flex; flex-direction: column; justify-content: center; }
+  [data-ss="text-box"] { width: min(66vw, 1100px); height: 44vh; display: flex; align-items: center; }
+  [data-ss="text"] {
+    width: 100%; text-align: left; color: var(--ink); font-weight: 500; line-height: 1.5;
+    font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif; text-wrap: pretty;
+    transition: opacity .25s ease;
+  }
+  html[data-swapping] [data-ss="text"] { opacity: 0; }
+  [data-ss="reference"] {
+    margin-top: 2.4vh; font: 600 clamp(13px, 2.4vh, 28px)/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+    letter-spacing: .06em; color: var(--acc);
+  }
+  [data-ss="version"] {
+    margin-top: .8vh; font: 500 clamp(10px, 1.6vh, 18px)/1 system-ui, sans-serif; color: var(--mute); letter-spacing: .12em;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="wrap">
+    <div class="bar"></div>
+    <div class="col">
+      <div data-ss="text-box"><div data-ss="text">&nbsp;</div></div>
+      <div data-ss="reference"></div>
+      <div data-ss="version"></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

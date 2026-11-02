@@ -1,4 +1,5 @@
 export type EmbedStyle = "link" | "tooltip" | "quote";
+export type CardTrigger = "always" | "shift" | "ctrl";
 export type TooltipStyle = "auto" | "hover" | "bottom-sheet";
 export type InterlinearDisplay = "auto" | "modal" | "inline";
 export type InterlinearLanguage = "both" | "greek" | "hebrew";
@@ -39,6 +40,17 @@ export interface ScriptureScribeSettings {
      * When false, the UI always uses the default purple palette.
      */
     useBookColors: boolean;
+    /**
+     * Card Mode: hovering a reference fades in a full-screen verse card
+     * instead of the tooltip (for screen-recording videos).
+     */
+    cardMode: boolean;
+    /** Skin file name in the plugin's skins/ folder; "" = built-in */
+    cardSkin: string;
+    /** When Card Mode is on: always show cards, or only while holding a key */
+    cardTrigger: CardTrigger;
+    /** Hide the mouse pointer while a card is showing */
+    cardHideCursor: boolean;
   };
   readingPanel: {
     /** Side the panel was last docked on — persisted so it re-opens there */
@@ -119,6 +131,10 @@ export const DEFAULT_SETTINGS: ScriptureScribeSettings = {
     cardShowStrongs: true,
     referenceClickBehavior: "both",
     useBookColors: true,
+    cardMode: false,
+    cardSkin: "",
+    cardTrigger: "always",
+    cardHideCursor: true,
   },
   readingPanel: {
     lastSide: "right",

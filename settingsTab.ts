@@ -3,6 +3,7 @@ import type ScriptureScribePlugin from "./main";
 import { VERSION_CODES } from "./settings";
 import { DEFAULT_PALETTE } from "./bookColorUtils";
 import { getIcon } from "./iconRegistry";
+import { listSkins, skinsFolderPath, BUILTIN_SKIN_LABEL, SKIN_GUIDE_TEXT } from "./verseCardSkins";
 
 // ── Constants & SVGs ─────────────────────────────────────────────────────────
 // Always use the default purple palette in settings UI (no per-book theming here)
@@ -363,6 +364,74 @@ export class ScriptureScribeSettingTab extends PluginSettingTab {
     UIFactory.buildButton(cacheCard, "Clear Verse Cache", "Force all scripture data to be re-fetched.", "Clear Cache", () => new Notice("ScriptureScribe: Reload Obsidian to fully clear the cache."));
   }
 
+  private renderCardModeCard() {
+    const plugin = this.plugin;
+    const pluginDir = plugin.manifest.dir!;
+    const adapter = plugin.app.vault.adapter;
+    const card = UIFactory.createCard(this.contentPane, "Verse Card Mode (for video)", getIcon("open-scroll", 36));
+
+    UIFactory.buildToggle(
+      card,
+      "🎬 Full-screen verse cards",
+      "Hovering a reference fades in a full-screen card instead of the tooltip, and fades out when you move away. Also available as a command: “Toggle Card Mode” (assign it a hotkey).",
+      plugin.settings.display.cardMode === true,
+      async (val) => { await plugin.tooltip.setCardMode(val); },
+    );
+
+    UIFactory.buildDropdown(
+      card,
+      "Card Trigger",
+      "When Card Mode is on: show cards for every hover, or only while you hold a key (otherwise you get the normal tooltip). Pressing the key while already hovering also works.",
+      { always: "Always", shift: "Hold Shift", ctrl: "Hold Ctrl" },
+      plugin.settings.display.cardTrigger ?? "always",
+      async (val) => { plugin.settings.display.cardTrigger = val as any; await plugin.saveSettings(); },
+    );
+
+    UIFactory.buildToggle(
+      card,
+      "Hide mouse pointer on card",
+      "Hides the pointer while a card is showing, so it never appears in your recording. It returns the moment you move off the verse.",
+      plugin.settings.display.cardHideCursor !== false,
+      async (val) => { plugin.settings.display.cardHideCursor = val; await plugin.saveSettings(); },
+    );
+
+    // Skins are read from disk, so the picker fills in once the folder is listed.
+    listSkins(adapter, pluginDir).then((files) => {
+      const options: Record<string, string> = { "": BUILTIN_SKIN_LABEL };
+      for (const f of files) options[f] = f.replace(/\.html?$/i, "");
+      const current = plugin.settings.display.cardSkin;
+      if (current && !options[current]) options[current] = `${current} (missing — using built-in)`;
+
+      UIFactory.buildDropdown(card, "Card Skin", "The look of the card. Each skin is a complete HTML page in the plugin's skins folder.", options, current, async (val) => {
+        plugin.settings.display.cardSkin = val;
+        await plugin.saveSettings();
+        plugin.tooltip.card?.reloadSkin();
+        plugin.tooltip.card?.warm();
+      });
+
+      UIFactory.buildButton(card, "Preview", "Show the current skin for a few seconds.", "Preview Card", () => {
+        const c = plugin.tooltip.card;
+        if (!c) return;
+        c.reloadSkin();
+        c.show({
+          key: "preview",
+          reference: "John 3:16",
+          text: "For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.",
+          version: "KJV", book: "John", testament: "nt",
+          palette: { base: "#7c5cff", light: "#e4dcff", mid: "#a995ff", dark: "#3a2a99" },
+        });
+        setTimeout(() => c.hide(), 4500);
+      }, true);
+
+      UIFactory.buildButton(card, "Make your own skin", "Copy the design guide, paste it to any AI with a description of the look you want, then save the HTML it gives you into the skins folder.", "Copy AI Guide", () => copyToast(SKIN_GUIDE_TEXT, "Skin guide"));
+
+      UIFactory.buildButton(card, "Skins folder", skinsFolderPath(pluginDir), "Open Folder", () => {
+        try { (plugin.app as any).showInFolder(`${skinsFolderPath(pluginDir)}/SKIN-GUIDE.md`); }
+        catch { new Notice(`Skins folder: ${skinsFolderPath(pluginDir)}`, 6000); }
+      });
+    });
+  }
+
   private renderAppearanceTab() {
     // Reading Panel Settings
     const rpCard = UIFactory.createCard(this.contentPane, "Panel & Hover Behavior", getIcon("verticle-page", 36));
@@ -398,6 +467,8 @@ export class ScriptureScribeSettingTab extends PluginSettingTab {
     UIFactory.buildDropdown(rpCard, "Tooltip Style", "Auto detects touch devices.", { auto: "Auto", hover: "Hover Tooltip", "bottom-sheet": "Bottom Sheet" }, this.plugin.settings.display.tooltipStyle, async (val) => { this.plugin.settings.display.tooltipStyle = val as any; await this.plugin.saveSettings(); });
     UIFactory.buildSlider(rpCard, "Hover Delay", "Milliseconds before tooltip appears.", 100, 1000, this.plugin.settings.hoverSettings.triggerDelayMs, (val) => { }, async (val) => { this.plugin.settings.hoverSettings.triggerDelayMs = val; await this.plugin.saveSettings(); });
     UIFactory.buildButton(rpCard, "Open Reader", "Launch the persistent reading sidebar.", "Open Reading Panel", () => (this.plugin as any).activatePanel?.(), true);
+
+    this.renderCardModeCard();
 
     // Word Cards Restructured
     const wcCard = UIFactory.createCard(this.contentPane, "Interlinear Word Cards", getIcon("Search-word", 36));

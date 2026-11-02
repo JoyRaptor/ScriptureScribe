@@ -1,12 +1,14 @@
 import {
   Editor, MarkdownView, Plugin, TFile, Menu,
-  MarkdownPostProcessorContext, normalizePath, WorkspaceLeaf, Platform
+  MarkdownPostProcessorContext, normalizePath, WorkspaceLeaf, Platform, Notice
 } from "obsidian";
 import { ViewPlugin, DecorationSet, Decoration, ViewUpdate, EditorView } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 import { ScriptureScribeSettings, DEFAULT_SETTINGS } from "./settings";
 import { parseScriptureRefs, ScriptureRef, refToString } from "./parser";
 import { ScriptureTooltip } from "./tooltip";
+import { VerseCard } from "./verseCard";
+import { seedSkinFolder, readSkin, BUILTIN_SKIN_HTML } from "./verseCardSkins";
 import { embedAllRefs } from "./embedEngine";
 import { ScriptureScribeSettingTab } from "./settingsTab";
 import { setKJVData, getKJVData, setSweteData } from "./fetcher";
@@ -134,6 +136,17 @@ export default class ScriptureScribePlugin extends Plugin {
     setVaultHighlightSettings(vh.opacity, vh.textColor);
 
     this.tooltip = new ScriptureTooltip(this.app, this.settings, () => this.saveSettings());
+
+    // Card Mode: full-screen verse card driven by a swappable HTML skin
+    void seedSkinFolder(this.app.vault.adapter, this.manifest.dir!);
+    this.tooltip.card = new VerseCard(
+      (name) => readSkin(this.app.vault.adapter, this.manifest.dir!, name),
+      () => this.settings.display.cardSkin,
+      BUILTIN_SKIN_HTML,
+      () => this.settings.display.cardHideCursor !== false,
+    );
+    if (this.settings.display.cardMode) this.tooltip.card.warm();
+
     this.addSettingTab(new ScriptureScribeSettingTab(this.app, this));
 
     // Register the persistent reading panel view type
@@ -222,6 +235,12 @@ export default class ScriptureScribePlugin extends Plugin {
     // Commands
     this.addCommand({ id: "open-reading-panel", name: "Open Reading Panel",
       callback: () => this.activatePanel() });
+    this.addCommand({ id: "toggle-card-mode", name: "Toggle Card Mode (full-screen verse cards)",
+      callback: async () => {
+        const on = !this.settings.display.cardMode;
+        await this.tooltip.setCardMode(on);
+        new Notice(on ? "Card Mode on — hover a verse for a full-screen card" : "Card Mode off — tooltips restored", 2000);
+      }});
     this.addCommand({ id: "search-strongs", name: "Search Strong's number",
       callback: async () => {
         const panel = await this.activatePanel();
