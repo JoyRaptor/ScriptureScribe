@@ -13,3 +13,4 @@ desktop.ini
 
 # Upstream clone that can be re-downloaded (see DATA-SOURCES.md)
 STEPBible-Data-TyndaleData/
+dist/

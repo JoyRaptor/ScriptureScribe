@@ -1,194 +1,128 @@
-# ScriptureScribe — Obsidian Plugin
+<div align="center">
 
-> Non-invasive scripture reference detection, hover tooltips, and smart embedding for Obsidian.
+# 📜 ScriptureScribe
+
+**A Bible study workbench inside Obsidian.**
+Hover any reference for the verse. Read Scripture in a side panel. Dig into Hebrew, Greek and the Septuagint. Turn verses into full-screen cards.
+
+[**⬇ Download the plugin**](https://github.com/JoyRaptor/ScriptureScribe/releases/latest) · [Install in 2 minutes](#-install-in-2-minutes) · [Features](#-features)
+
+![Hover tooltip showing Romans 10:1 beside an interlinear Greek reading panel](docs/images/tooltip.png)
+
+</div>
 
 ---
 
-## Features
+## ✨ Features
 
-| Feature | Description |
+### 💬 Hover any reference
+Type `Rom 10:1`, `Gen 1:1-3`, `1 Cor 13:4` or `Jn 3:16` in any note and ScriptureScribe underlines it. Hover to see the verse, switch translation, jump to cross-references, or **embed** it as a link, footnote or quote block. Works offline: the KJV is bundled.
+
+### 📖 Bible mode
+A full reading panel in your sidebar. Browse any book and chapter, with verse numbers, drop caps, and the KJV's supplied words in *italics*, the way the translators printed them.
+
+![Bible mode showing Genesis 1 in the sidebar](docs/images/bible-mode.png)
+
+### 🔬 Research mode
+<img src="docs/images/research-mode.png" align="right" width="260" alt="Research mode: Strong's G5485 search">
+
+- **Interlinear** Hebrew (OT), Greek (NT) and Septuagint, with transliteration, Strong's numbers and morphology on every word
+- **Strong's search**: type `G5485` or `H7225` to get the lexicon entry and every verse that uses the word
+- **Search by English, Greek, Hebrew or meaning**: keyword and semantic search across the whole Bible
+- **Lexicons**: Strong's, LSJ (Liddell-Scott-Jones) and Swete's LXX
+- **In your notes**: see every note in your vault that mentions the passage you are reading
+- **Cross-references** under every verse
+
+<br clear="right">
+
+### 🖼 Card Mode
+Turn any verse into a full-screen, cinematic card, ideal for sermon prep, recording, or presenting. Cards are plain HTML **skins** you can swap or write yourself. Included: *Velvet Aurora*, *Velvet Rainbow* and *Obsidian Minimal*.
+
+![Card Mode showing Romans 6:1 in the Velvet Aurora skin](docs/images/card-mode.png)
+
+### Everything else
+- Multiple translations in the tooltip, falling back to the bundled KJV when offline
+- Three embed styles: **link**, **footnote**, **quote block**, plus *Embed All* in one undo step
+- 1 Enoch (Charles) supplement for the addresses the base text lacks
+- Verse of the Day
+
+---
+
+## 🚀 Install in 2 minutes
+
+> **No coding, no terminal.** The download already contains everything, including the Bible, Hebrew, Greek and lexicon data (about 77 MB zipped, 210 MB unzipped).
+
+1. **[Download `scripture-scribe-v1.0.0.zip`](https://github.com/JoyRaptor/ScriptureScribe/releases/latest)** from the latest release.
+2. **Unzip it.** You get one folder named `scripture-scribe`.
+3. **Find your vault's plugins folder:** `<your vault>/.obsidian/plugins/`
+   - `.obsidian` is hidden. In Obsidian go to **Settings → Files & Links** and note your vault location, then show hidden files:
+     - **Windows:** File Explorer → View → Show → *Hidden items*
+     - **Mac:** in Finder press `Cmd + Shift + .`
+   - If there's no `plugins` folder, create one.
+4. **Move the `scripture-scribe` folder into `plugins`.**
+   The result should be `.obsidian/plugins/scripture-scribe/main.js`.
+5. In Obsidian open **Settings → Community plugins**, turn off **Restricted mode**, click the refresh icon, and switch **ScriptureScribe** on.
+6. Type a reference like `John 3:16` in a note and hover it. 🎉
+
+**Opening the panels:** press `Ctrl/Cmd + P` and run **ScriptureScribe: Open Reading Panel** (Bible and Research modes), **Toggle Card Mode**, or **Search Strong's number**.
+
+### Updating
+Download the new zip and overwrite the `scripture-scribe` folder. Your settings are kept, because they live in `data.json`, which the zip never includes.
+
+### Troubleshooting
+| Problem | Fix |
 |---|---|
-| **Auto-Detection** | Highlights scripture references as you type (debounced, viewport-only) |
-| **Hover Tooltip** | Shows verse text on hover with version switcher and embed controls |
-| **Offline-First** | Bundled KJV data — works with no internet connection |
-| **3 Embed Styles** | URL Link, Markdown Footnote, or Quote Block |
-| **Embed All** | Replace every reference in the document in one undo-able action |
-| **Multi-Translation** | Switch versions live in the tooltip (KJV, ESV, NIV, NASB, NKJV, NLT…) |
+| Plugin isn't listed | The folder must be exactly `.obsidian/plugins/scripture-scribe/` with `manifest.json` directly inside, not nested one level deeper. Click the refresh icon in Community plugins. |
+| Nothing is underlined | Make sure the plugin is enabled and you are in a note, not a canvas. Try `John 3:16`. |
+| First load is slow | The Greek, Hebrew and search data loads on demand, so the first lookup of each is the slowest. |
 
 ---
 
-## Detected Reference Formats
+## 🧭 Commands
 
-The parser recognizes all of these patterns:
+Open the command palette with `Ctrl/Cmd + P`:
 
-| Input | Canonical Output |
+| Command | What it does |
 |---|---|
-| `Genesis 1:1` | Genesis 1:1 |
-| `Gen 1:1` | Genesis 1:1 |
-| `Gn 1:1-3` | Genesis 1:1-3 |
-| `1 Cor 13:4` | 1 Corinthians 13:4 |
-| `Jn 3:16` | John 3:16 |
-| `Rev 22:21` | Revelation 22:21 |
-| `Ps 119:105` | Psalms 119:105 |
-| `2Tim 3:16` | 2 Timothy 3:16 |
+| **Open Reading Panel** | Bible mode / Research mode sidebar |
+| **Toggle Card Mode** | Full-screen verse cards |
+| **Search Strong's number** | Jump to a lexicon entry, e.g. `G5485` |
+| **Show Verse of the Day** | Today's verse |
+| **Embed All References as Links / Quote Blocks / Footnote Tooltips** | Convert every reference in the note, undo-able |
 
----
+## 🔎 Recognised reference formats
 
-## Embedding Styles
+`Genesis 1:1` · `Gen 1:1` · `Gn 1:1-3` · `1 Cor 13:4` · `2Tim 3:16` · `Jn 3:16` · `Ps 119:105` · `Rev 22`
 
-### 🔗 URL Link
-```
-[John 3:16](https://www.biblegateway.com/passage/?search=John+3%3A16&version=KJV)
-```
+## ✍️ Embedding styles
 
-### 📎 MD Tooltip (Footnote)
-```
-John 3:16[^ss1]
+```md
+[John 3:16](https://www.biblegateway.com/passage/?search=John+3%3A16&version=KJV)   ← link
 
+John 3:16[^ss1]                                                                  ← footnote
 [^ss1]: For God so loved the world... (KJV)
-```
 
-### ❝ Quote Block
-```
-> "For God so loved the world, that he gave his only begotten Son..."
+> "For God so loved the world, that he gave his only begotten Son..."             ← quote block
 > — John 3:16, KJV
 ```
 
 ---
 
-## Installation
+## 🛠 Build from source
 
-### Manual (Developer Mode)
-
-1. Clone or download this repo
-2. Run `npm install`
-3. Run `npm run build` — this produces `main.js`
-4. Copy `main.js`, `manifest.json`, and `styles.css` into:
-   ```
-   <your-vault>/.obsidian/plugins/scripture-scribe/
-   ```
-5. Enable the plugin in **Settings → Community Plugins**
-
-### Via BRAT (Beta)
-1. Install the [BRAT plugin](https://github.com/TfTHacker/obsidian42-brat)
-2. Add this repo URL in BRAT settings
-
----
-
-## Project Structure
-
-```
-scripture-scribe/
-├── src/
-│   ├── main.ts          # Plugin entry point & orchestration
-│   ├── parser.ts        # Regex detection engine
-│   ├── bibleData.ts     # All 66 books + abbreviation lookup map
-│   ├── fetcher.ts       # Hybrid KJV-local / API fetcher with cache
-│   ├── embedEngine.ts   # Solidification logic (3 embed styles)
-│   ├── tooltip.ts       # Hover UI component
-│   ├── settingsTab.ts   # Settings panel UI
-│   └── settings.ts      # Types & defaults
-├── styles.css           # Plugin stylesheet
-├── manifest.json        # Obsidian plugin manifest
-├── package.json
-├── tsconfig.json
-└── esbuild.config.mjs
+```bash
+git clone https://github.com/JoyRaptor/ScriptureScribe.git
+cd ScriptureScribe
+npm install
+npm run build   # produces main.js
+npm test
 ```
 
----
+Copy `main.js`, `manifest.json`, `styles.css` and the data files into `<vault>/.obsidian/plugins/scripture-scribe/`. Most people should use the [release zip](https://github.com/JoyRaptor/ScriptureScribe/releases/latest) instead, since it bundles the data. See [DATA-SOURCES.md](DATA-SOURCES.md) for where each dataset comes from.
 
-## Data & API Strategy
+## 📚 Data & credits
 
-### KJV (Local, Offline)
-- The plugin ships with a `kjv.json` file containing all 31,102 KJV verses (~4MB compressed)
-- Zero internet required for KJV lookups
-- Sub-10ms lookup time (indexed by book/chapter/verse)
-
-### Other Translations (API)
-- Uses [bible-api.com](https://bible-api.com) — **free, no API key required**
-- 24-hour client-side cache reduces redundant requests
-- Falls back to local KJV + "⚠ Offline" badge if API is unreachable within 3 seconds
-
----
-
-## Settings
-
-| Key | Default | Description |
-|---|---|---|
-| `primaryTranslation` | `KJV` | Default translation for tooltips |
-| `offlineFallback` | `true` | Show KJV if API is unavailable |
-| `favoriteTranslations` | `[KJV, ESV, NIV, NASB, NKJV]` | Versions shown in tooltip dropdown |
-| `hoverSettings.triggerDelayMs` | `300` | Delay before tooltip appears (ms) |
-| `embedding.defaultStyle` | `quote` | Default embed style |
-| `embedding.includeVersionBadge` | `true` | Show translation badge in embeds |
-| `excludedFolders` | `[]` | Folders to skip scanning |
-
----
-
-## Commands
-
-All commands are accessible via the Obsidian Command Palette (`Ctrl+P` / `Cmd+P`):
-
-- **ScriptureScribe: Embed All References as Links**
-- **ScriptureScribe: Embed All References as Quote Blocks**
-- **ScriptureScribe: Embed All References as Footnote Tooltips**
-- **ScriptureScribe: Embed All References (default style)**
-
----
-
-## Developer Notes
-
-### Adding Full KJV Data
-Replace the `KJV_SAMPLE` in `fetcher.ts` with a full JSON loader:
-
-```typescript
-// In fetcher.ts
-import KJV_DATA from "../data/kjv.json";
-
-async function lookupLocalKJV(ref: ScriptureRef): Promise<VerseResult> {
-  const key = refToString(ref);
-  const text = KJV_DATA[key];
-  if (text) return { reference: key, text, version: "KJV", source: "local" };
-  return { reference: key, text: `[Verse not found: ${key}]`, version: "KJV", source: "local" };
-}
-```
-
-A properly formatted `kjv.json` looks like:
-```json
-{
-  "Genesis 1:1": "In the beginning God created...",
-  "Genesis 1:2": "And the earth was without form...",
-  ...
-}
-```
-
-### Performance Mandates (as specified in Design Bible)
-1. **Debouncing**: All scans fire after a 300ms pause via `scheduleScan()`
-2. **Viewport-only**: `scanViewport()` only processes the active leaf's DOM
-3. **Cache layer**: `fetcher.ts` caches API results for 24h in-memory
-
----
-
-## Test Cases
-
-Reference formats that must be correctly parsed:
-
-```
-Genesis 1:1         ✓ Standard full reference
-Gen 1:1             ✓ Standard abbreviation  
-Gn 1:1              ✓ Short abbreviation
-1 Cor 13:4-8        ✓ Numbered book + verse range
-2Tim 3:16           ✓ No space before number
-Ps 119:105          ✓ Three-digit chapter
-Song 2:1            ✓ Song of Solomon short form
-Rev 22              ✓ Chapter only (no verse)
-Jn 3:16             ✓ Two-letter abbreviation
-1Jn 4:8             ✓ No space in numbered book
-Page 1:1            ✗ Should NOT match (not a Bible book)
-Col 3:1-4           ✓ Colossians range reference
-```
-
----
+KJV (public domain, with supplied-word markup from eBible), STEPBible TAHOT/TAGNT/TBESH/TBESG (CC BY 4.0, [STEPBible.org](https://www.stepbible.org)), LSJ, Swete's Septuagint, and R. H. Charles' 1 Enoch (1917). Full provenance in [DATA-SOURCES.md](DATA-SOURCES.md).
 
 ## License
 
