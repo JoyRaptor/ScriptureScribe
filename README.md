@@ -75,6 +75,8 @@ Bible software like Logos and e-Sword was built around a library, with a notes p
 
 > **No coding, no terminal.** The download already includes the Bible, Hebrew, Greek and lexicon data (77 MB zipped, about 210 MB installed).
 
+> **Just want to look around?** Download the **[demo vault](https://github.com/JoyRaptor/ScriptureScribe/releases/latest/download/ScriptureScribe-demo-vault.zip)**: real study notes with ScriptureScribe already installed. Unzip it, choose *Open folder as vault* in Obsidian, click *Trust author and enable plugins*, and follow the 5-minute tour in "Start Here".
+
 1. **[Download `scripture-scribe.zip`](https://github.com/JoyRaptor/ScriptureScribe/releases/latest/download/scripture-scribe.zip)**
 2. **Unzip it.** You get one folder named `scripture-scribe`.
 3. **Open your vault's plugins folder:** `<your vault>/.obsidian/plugins/`
