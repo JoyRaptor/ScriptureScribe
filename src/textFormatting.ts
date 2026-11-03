@@ -18,7 +18,12 @@ export function renderPassage(container: HTMLElement, text: string): void {
   container.textContent = "";
   for (const run of passageRuns(text)) {
     let node: Node = document.createTextNode(run.text);
-    for (const style of run.styles) { const el = document.createElement(style); el.appendChild(node); node = el; }
+    for (const style of run.styles) {
+      const el = document.createElement(style);
+      // A lone *word* is a KJV supplied word: styled quiet (styles.css), not like the theme's colored italics.
+      if (style === "em" && run.styles.length === 1) el.className = "ss-supplied";
+      el.appendChild(node); node = el;
+    }
     container.appendChild(node);
   }
 }

@@ -107,3 +107,9 @@ html.ss-card-showing .ss-recording-controls button { cursor: pointer !important;
   }
   .ss-recording-controls button { min-height: 36px; }
 }
+
+/* KJV supplied words: italic as the translators printed them, but quiet. Themes often color every
+   <em>; a word added for English sense shouldn't be the brightest thing on the page. Lowering
+   opacity on the inherited text color gives gray on light text, gray on dark text, and gray on
+   a highlighted verse alike. */
+em.ss-supplied.ss-supplied { color: inherit !important; opacity: .6; font-style: italic; font-weight: inherit; background: none; }

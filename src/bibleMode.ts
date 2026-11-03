@@ -169,12 +169,17 @@ export class BibleModeView {
       s.id = "ss-verse-flash-kf";
       document.head.appendChild(s);
     }
+    // The flash is a layer drawn over the verse (an inset shadow), never its background, so a
+    // note highlight stays put underneath: it brightens and settles back, with nothing popping in.
     s.textContent = `
       @keyframes ss-verse-flash {
-        0%   { background: transparent; }
-        15%  { background: ${this.P}26; }
-        35%  { background: ${this.PL}; color: ${this.P}; }
-        100% { background: transparent; color: var(--text-normal); }
+        0%   { box-shadow: inset 0 0 0 100vmax transparent, 0 0 0 0 transparent; }
+        18%  { box-shadow: inset 0 0 0 100vmax var(--ss-flash), 0 0 16px 2px ${this.P}99; }
+        100% { box-shadow: inset 0 0 0 100vmax transparent, 0 0 0 0 transparent; }
+      }
+      @keyframes ss-tap-flash {
+        0%   { box-shadow: inset 0 0 0 100vmax var(--ss-flash); }
+        100% { box-shadow: inset 0 0 0 100vmax transparent; }
       }
     `;
   }
@@ -1091,28 +1096,7 @@ export class BibleModeView {
         - Math.round(container.clientHeight * 0.3);
       container.scrollBy({ top: targetOffset, behavior: "smooth" });
 
-      // Capture any existing vault highlight so we can restore it afterward
-      const vaultBg = span.dataset.vaultBg ?? "";
-      const hasVault = !!vaultBg;
-
-      // Trigger flash animation
-      span.style.animation = "none";
-      span.style.color = "var(--text-normal)";
-      void span.offsetWidth; // force reflow
-      span.style.animation = "ss-verse-flash 2.2s cubic-bezier(0.4,0,0.2,1) forwards";
-
-      // After animation ends, restore vault highlight (or clear if none)
-      setTimeout(() => {
-        if (!span.isConnected) return;
-        span.style.animation = "";
-        if (hasVault) {
-          span.style.background = vaultBg;
-          span.style.color = getVaultHighlightTextColor();
-        } else {
-          span.style.background = "";
-          span.style.color = "";
-        }
-      }, 2300);
+      this.flashOver(span, "ss-verse-flash 2.2s cubic-bezier(0.4,0,0.2,1)", 2300);
     };
 
     attempt(6);
@@ -1252,30 +1236,24 @@ export class BibleModeView {
    * Restores any existing vault highlight color afterward.
    */
   private flashVerseTap(span: HTMLElement): void {
-    if (!document.getElementById("ss-tap-flash-kf")) {
-      const s = document.createElement("style");
-      s.id = "ss-tap-flash-kf";
-      s.textContent = `
-        @keyframes ss-tap-flash {
-          0%   { background: ${this.P}55; }
-          60%  { background: ${this.P}22; }
-          100% { background: var(--ss-restore-bg, transparent); }
-        }
-      `;
-      document.head.appendChild(s);
-    }
-    const vaultBg = span.dataset.vaultBg ?? "";
-    // Store restore target as a CSS variable on the element
-    span.style.setProperty("--ss-restore-bg", vaultBg || "transparent");
+    this.flashOver(span, "ss-tap-flash 0.38s ease", 400);
+  }
+
+  /**
+   * Play a flash layer over a verse without touching its background or text color. A highlighted
+   * verse brightens (white over its note color); a plain one tints with the book color.
+   */
+  private flashOver(span: HTMLElement, animation: string, ms: number): void {
+    span.style.setProperty("--ss-flash", span.dataset.vaultBg ? "rgba(255,255,255,.55)" : `${this.P}40`);
+    span.style.setProperty("-webkit-box-decoration-break", "clone");
+    span.style.setProperty("box-decoration-break", "clone");
     span.style.animation = "none";
-    void span.offsetWidth; // force reflow
-    span.style.animation = "ss-tap-flash 0.38s ease forwards";
-    setTimeout(() => {
-      if (!span.isConnected) return;
-      span.style.animation = "";
-      span.style.background = vaultBg || "";
-      span.style.removeProperty("--ss-restore-bg");
-    }, 400);
+    void span.offsetWidth; // restart the animation if it is already running
+    span.style.animation = animation;
+    clearTimeout(Number(span.dataset.flashTimer));
+    span.dataset.flashTimer = String(window.setTimeout(() => {
+      if (span.isConnected) span.style.animation = "";
+    }, ms));
   }
 
   private toggleVerseActions(span: HTMLElement, verseKey: string): void {

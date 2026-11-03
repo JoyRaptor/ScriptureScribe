@@ -29,6 +29,33 @@
   }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
   document.querySelectorAll(".reveal").forEach((el) => (shot ? el.classList.add("in") : io.observe(el)));
 
+  /* ── screenshot slideshows ── */
+  document.querySelectorAll(".slides").forEach((fig) => {
+    const imgs = [...fig.querySelectorAll("img")];
+    const cap = fig.querySelector(".slide-cap");
+    const hud = fig.dataset.hud && document.getElementById(fig.dataset.hud);
+    if (imgs.length < 2 || reduce || shot) return;
+    let i = 0;
+    const show = (next) => {
+      imgs[i].classList.replace("on", "out");
+      const prev = imgs[i];
+      setTimeout(() => prev.classList.remove("out"), 1100);
+      i = next;
+      imgs[i].classList.add("on");
+      const label = imgs[i].dataset.label || "";
+      if (cap) cap.textContent = label;
+      if (hud) hud.querySelector(".hud-w").textContent = label;
+      if (fig.classList.contains("frame-main")) fig.closest(".stage")?.classList.toggle("wide", i !== 0);
+    };
+    setInterval(() => {
+      if (document.hidden) return;
+      const next = imgs[(i + 1) % imgs.length];
+      // Never flip to a picture that hasn't arrived; ask for it now and try again next tick.
+      if (!next.complete || !next.naturalWidth) { next.loading = "eager"; return; }
+      show((i + 1) % imgs.length);
+    }, +fig.dataset.interval || 4000);
+  });
+
   /* ── 01: hover demo ── */
   const demo = $("#demo");
   const tip = $("#tip");

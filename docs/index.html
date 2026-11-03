@@ -82,7 +82,14 @@
         <path d="M24 66 C 30 62, 36 58, 44 56" />
         <path d="M84 66 C 84 58, 86 52, 88 46" />
       </svg>
-      <figure class="frame frame-main"><img src="images/shot-tooltip.png" width="1087" height="653" alt="A note in Obsidian with the reference Rm10:1 underlined and a tooltip showing Romans 10:1 in the KJV, with cross-reference chips and an Embed button"></figure>
+      <figure class="frame frame-main slides" data-interval="4200">
+        <img class="on" src="images/shot-tooltip.png" width="1087" height="653" data-label="Hover · Romans 10:1" alt="A note in Obsidian with the reference Rm10:1 underlined and a tooltip showing Romans 10:1 in the KJV, with cross-reference chips and an Embed button">
+        <img src="images/app-seed-rev5.webp" width="1560" height="937" decoding="async" data-label="Bible mode · Revelation 5" alt="A study note beside Bible mode open at Revelation 5, with verses highlighted in the colors of the notes that cite them">
+        <img src="images/app-gage-rev10.webp" width="1560" height="937" decoding="async" data-label="Bible mode · Revelation 10" alt="A dissertation clipping full of references beside Bible mode at Revelation 10, where the cited verses are highlighted and the rest are plain">
+        <img src="images/app-seed-luke17.webp" width="1560" height="937" decoding="async" data-label="Bible mode · Luke 17" alt="The seed-tree-fruit study note beside Bible mode at Luke 17, its verses lit in many note colors">
+        <img src="images/app-apostasy-rev5.webp" width="1560" height="937" decoding="async" data-label="Notes + Bible · Revelation 5" alt="A note on 2 Thessalonians 2:3 with linked references beside Bible mode at Revelation 5">
+        <figcaption class="slide-cap">Hover · Romans 10:1</figcaption>
+      </figure>
       <figure class="frame frame-side"><img src="images/shot-interlinear.png" width="440" height="745" alt="The interlinear panel showing Romans 10:1 word by word in Greek, with transliteration, Strong's numbers and morphology"></figure>
 
       <div class="hud hud-a"><span class="hud-k">G3056 · noun</span><span class="hud-w greek">λόγος</span><span class="hud-g">word</span><i class="bars"><b></b><b></b><b></b></i></div>
@@ -169,8 +176,13 @@
       </ul>
     </div>
     <div class="phone reveal" aria-label="Bible mode screenshot">
-      <figure class="frame frame-tall"><img src="images/shot-xrefs.png" width="440" height="760" loading="lazy" alt="The reading panel's In Your Notes list for Romans 10:1: two notes that cite the verse, each with the sentence around the citation, above the verse's cross-references"></figure>
-      <div class="hud hud-float"><span class="hud-k">IN YOUR NOTES</span><span class="hud-w" style="font:700 1.6rem/1.2 var(--sans)">Romans 10:1</span><span class="hud-g">cited in 2 notes</span></div>
+      <figure class="frame frame-tall slides" data-interval="3600" data-hud="read-hud">
+        <img class="on" src="images/bible-rev10.webp" width="545" height="1120" loading="lazy" data-label="Revelation 10" alt="Bible mode at Revelation 10: verses 1 and 4 highlighted in two note colors, the rest plain, with gray italic supplied words">
+        <img src="images/bible-luke17.webp" width="545" height="1120" loading="lazy" data-label="Luke 17" alt="Bible mode at Luke 17 with verses highlighted in yellow, orange, green, purple and blue for different notes">
+        <img src="images/bible-rev5.webp" width="545" height="1120" loading="lazy" data-label="Revelation 5" alt="Bible mode at Revelation 5: the first verses plain, then a run of verses highlighted in blended note colors">
+        <img src="images/bible-gen1.webp" width="545" height="1120" loading="lazy" data-label="Genesis 1" alt="Bible mode at Genesis 1 with most verses highlighted in different note colors">
+      </figure>
+      <div class="hud hud-float" id="read-hud"><span class="hud-k">BIBLE MODE</span><span class="hud-w" style="font:700 1.6rem/1.2 var(--sans)">Revelation 10</span><span class="hud-g">a color for every note</span></div>
     </div>
   </div>
 </section>

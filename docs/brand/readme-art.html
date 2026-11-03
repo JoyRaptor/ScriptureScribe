@@ -45,9 +45,11 @@
   #hover .hud { right: 0; top: 70px; }
   #hover .hud-2 { left: 10px; right: auto; top: auto; bottom: 64px; }
 
-  #bible .frame-tall { width: 360px; max-height: none; height: auto; transform: rotate(-2.5deg) translateY(30px); }
+  #bible .frame-tall { position: absolute; width: 300px; max-height: none; height: auto; }
+  #bible .ft-a { left: 210px; top: 40px; transform: rotate(-3deg); z-index: 2; }
+  #bible .ft-b { left: 40px; top: 90px; transform: rotate(-9deg) scale(.92); opacity: .85; z-index: 1; }
   #bible .frame-tall img { mask-image: none; -webkit-mask-image: none; }
-  #bible .hud { left: auto; right: 60px; bottom: 120px; }
+  #bible .hud { left: auto; right: 20px; bottom: 70px; z-index: 3; }
   #bible .hud-2 { left: 40px; right: auto; top: 90px; bottom: auto; }
 
   #research { height: 760px; }
@@ -125,8 +127,9 @@
   <div class="bg-glow"></div><div class="bokeh"></div>
   <div class="in">
     <div class="vis">
-      <figure class="frame frame-tall"><img src="../images/shot-xrefs.png" alt=""></figure>
-      <div class="hud hud-b"><span class="hud-k">In your notes</span><span class="hud-w" style="font:700 1.9rem/1.2 var(--sans)">Romans 10:1</span><span class="hud-g">cited in 2 notes</span></div>
+      <figure class="frame frame-tall ft-b"><img src="../images/bible-luke17.webp" alt=""></figure>
+      <figure class="frame frame-tall ft-a"><img src="../images/bible-rev10.webp" alt=""></figure>
+      <div class="hud hud-b"><span class="hud-k">Bible mode</span><span class="hud-w" style="font:700 1.9rem/1.2 var(--sans)">a color per note</span><span class="hud-g">plain verses stay plain</span></div>
     </div>
     <div>
       <p class="kicker"><b>02</b> Read</p>
