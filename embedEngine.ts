@@ -41,13 +41,22 @@ export function setGlobalEmbedStyle(
 import { getActiveInterlinear } from "./interlinear";
 import type { InterlinearWord } from "./interlinear";
 
+/** Resolve by meaning as well as spelling, nearest the editor's saved cursor. */
+function findOccurrence(content: string, ref: ScriptureRef): ScriptureRef | null {
+  const key = refToString(ref);
+  const candidates = parseScriptureRefs(content).filter(r => refToString(r) === key);
+  if (!candidates.length) return null;
+  const near = _cachedCursorOffset ?? ref.start;
+  return candidates.reduce((best, r) => Math.abs(r.start - near) < Math.abs(best.start - near) ? r : best);
+}
+
 // ──────────────────────────────────────
 // Transformation functions per embed style
 // ──────────────────────────────────────
 
 export function buildLink(ref: ScriptureRef, version: string): string {
   const versionCode = VERSION_CODES[version] ?? version;
-  const search = encodeURIComponent(`${ref.book} ${ref.chapter}:${ref.verseStart}`);
+  const search = encodeURIComponent(refToString(ref));
   const url = `https://www.biblegateway.com/passage/?search=${search}&version=${versionCode}`;
   return `[${refToString(ref)}](${url})`;
 }
@@ -67,10 +76,7 @@ export function buildTooltipRef(ref: ScriptureRef, verse: VerseResult, footnoteI
 export function buildQuoteBlock(ref: ScriptureRef, verse: VerseResult): string {
   const label = refToString(ref);
   const badge = verse.version ? `, ${verse.version}` : "";
-  // Truncate gracefully for very long passages
-  const text = verse.text.length > 400
-    ? verse.text.slice(0, 397) + "…"
-    : verse.text;
+  const text = verse.formattedText ?? verse.text;
   return `> "${text}"\n> — ${label}${badge}`;
 }
 
@@ -128,36 +134,12 @@ export async function embedInterlinear(
   // Insert at cursor position; if the ref raw text is found, replace it
   const content = editor.getValue();
   
-  let pos = -1;
-  if (_cachedCursorOffset !== null) {
-    const matches: number[] = [];
-    let i = content.indexOf(ref.raw);
-    while (i !== -1) {
-      matches.push(i);
-      i = content.indexOf(ref.raw, i + 1);
-    }
-    if (matches.length > 0) {
-      let minDiff = Infinity;
-      for (const m of matches) {
-        const diff = Math.abs(m - _cachedCursorOffset);
-        if (diff < minDiff) {
-          minDiff = diff;
-          pos = m;
-        }
-      }
-    }
-  }
-
-  if (pos === -1) {
-    pos = ref.start;
-    if (content.slice(pos, pos + ref.raw.length) !== ref.raw) {
-      pos = content.indexOf(ref.raw);
-    }
-  }
+  const occurrence = findOccurrence(content, ref);
+  const pos = occurrence?.start ?? -1;
 
   if (pos !== -1) {
     const from = editor.offsetToPos(pos);
-    const to   = editor.offsetToPos(pos + ref.raw.length);
+    const to   = editor.offsetToPos(occurrence!.end);
     editor.replaceRange("\n\n" + table + "\n", from, to);
   } else {
     // Fallback: insert at cursor
@@ -253,33 +235,8 @@ export async function embedSingleRef(
   // Find and replace the raw text in the editor
   const content = editor.getValue();
   
-  let pos = -1;
-  if (_cachedCursorOffset !== null) {
-    const matches: number[] = [];
-    let i = content.indexOf(ref.raw);
-    while (i !== -1) {
-      matches.push(i);
-      i = content.indexOf(ref.raw, i + 1);
-    }
-    if (matches.length > 0) {
-      let minDiff = Infinity;
-      for (const m of matches) {
-        const diff = Math.abs(m - _cachedCursorOffset);
-        if (diff < minDiff) {
-          minDiff = diff;
-          pos = m;
-        }
-      }
-    }
-  }
-
-  if (pos === -1) {
-    pos = ref.start;
-    if (content.slice(pos, pos + ref.raw.length) !== ref.raw) {
-      pos = content.indexOf(ref.raw);
-    }
-  }
-  
+  const occurrence = findOccurrence(content, ref);
+  const pos = occurrence?.start ?? -1;
   if (pos === -1) {
     new Notice("ScriptureScribe: Could not locate reference in document.");
     clearCachedCursorOffset();
@@ -287,7 +244,7 @@ export async function embedSingleRef(
   }
 
   const from = editor.offsetToPos(pos);
-  const to   = editor.offsetToPos(pos + ref.raw.length);
+  const to   = editor.offsetToPos(occurrence!.end);
 
   let replacement: string;
 
@@ -390,6 +347,10 @@ export async function embedAllRefs(
     updated += "\n\n" + footnotes.join("\n");
   }
 
+  if (editor.getValue() !== content) {
+    new Notice("ScriptureScribe: the note changed while passages loaded. Run Embed All again.");
+    return;
+  }
   // Apply as a single transaction (one undo step)
   editor.setValue(updated);
   new Notice(`ScriptureScribe: Embedded ${refs.length} reference${refs.length === 1 ? "" : "s"}.`);

@@ -11,6 +11,7 @@
  */
 
 import { ScriptureRef, refToString } from "./parser";
+import { ensureData } from "./dataLoader";
 
 // ── Data store ────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,10 @@ let crossRefData: Record<string, string[]> = {};
 
 export function setCrossRefData(data: Record<string, string[]>): void {
   crossRefData = data;
+}
+
+export function ensureCrossRefData(): Promise<void> {
+  return ensureData("cross-refs.json", setCrossRefData);
 }
 
 export function isCrossRefLoaded(): boolean {

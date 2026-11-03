@@ -16,12 +16,12 @@
  *   Background: smooth linear-gradient between note colors at 12% opacity.
  *
  * Range expansion:
- *   Refs like "Romans 3:23-28" expand to at most 3 consecutive verse keys
- *   so the highlight is meaningful without flooding the index.
+ *   Refs like "Romans 3:23-28" include the complete passage. Repeated note
+ *   contexts are interned in the persistent cache to avoid duplicating text.
  */
 
 import { Vault, TFile } from "obsidian";
-import { parseScriptureRefs } from "./parser";
+import { parseScriptureRefs, expandRef } from "./parser";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -159,6 +159,41 @@ let _isScanning = false;
 
 /** Per-file cache: filePath → list of verse keys it contributed. */
 const _fileCache: Map<string, string[]> = new Map();
+const _fileStats = new Map<string, {mtime: number; size: number}>();
+let cachePath = "";
+let cacheVault: Vault | null = null;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+const fileJobs = new Map<string, Promise<void>>();
+
+export function stopVaultIndex(): void {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  cacheVault = null;
+  _readyCbs.splice(0);
+}
+
+async function saveCache(): Promise<void> {
+  if (!cacheVault || !cachePath) return;
+  const files: Record<string, any> = {};
+  for (const [path, stat] of _fileStats) {
+    const contexts: string[] = [];
+    const lookup = new Map<string, number>();
+    const entries = (_fileCache.get(path) ?? []).map(key => {
+      const context = _index.get(key)?.find(n => n.filePath === path)?.context ?? "";
+      let id = lookup.get(context);
+      if (id === undefined) { id = contexts.length; contexts.push(context); lookup.set(context, id); }
+      return [key, id];
+    });
+    files[path] = { ...stat, contexts, entries };
+  }
+  try { await cacheVault.adapter.write(cachePath, JSON.stringify({version: 4, files})); }
+  catch (error) { console.warn("ScriptureScribe: could not persist vault index", error); }
+}
+function scheduleCacheSave(): void {
+  if (!cacheVault) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { saveTimer = null; void saveCache(); }, 3000);
+}
 const _fileByVerseSet: Map<string, Set<string>> = new Map();
 
 const _readyCbs: Array<() => void> = [];
@@ -226,6 +261,7 @@ function removeFileFromIndex(filePath: string): void {
     if (s) s.delete(filePath);
   }
   _fileCache.delete(filePath);
+  _fileStats.delete(filePath);
 }
 
 function extractContext(content: string, start: number, end: number): string {
@@ -239,14 +275,19 @@ function extractContext(content: string, start: number, end: number): string {
   return snippet;
 }
 
-const MAX_RANGE_VERSES = 3;
 
 async function indexFile(
   vault:      Vault,
   file:       TFile,
   exclusions: string[],
 ): Promise<void> {
-  if (exclusions.some(f => file.path.startsWith(f.replace(/\/?$/, "/")))) return;
+  if (exclusions.some(f => file.path.startsWith(f.replace(/\/?$/, "/")))) {
+    removeFileFromIndex(file.path);
+    return;
+  }
+  const old = _fileStats.get(file.path);
+  if (old?.mtime === file.stat.mtime && old.size === file.stat.size) return;
+  const stat = { mtime: file.stat.mtime, size: file.stat.size };
 
   try {
     const content = await vault.cachedRead(file);
@@ -258,21 +299,8 @@ async function indexFile(
 
     for (const ref of refs) {
       const ctx     = extractContext(content, ref.start, ref.end);
-      const rangeEnd = ref.verseEnd
-        ? Math.min(ref.verseEnd, ref.verseStart + MAX_RANGE_VERSES - 1)
-        : ref.verseStart;
-
-      for (let v = ref.verseStart; v <= rangeEnd; v++) {
-        const key = `${ref.book} ${ref.chapter}:${v}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          newKeys.push(key);
-          noteMap.set(key, { filePath: file.path, context: ctx });
-        }
-      }
-
-      for (const v of ref.additionalVerses ?? []) {
-        const key = `${ref.book} ${ref.chapter}:${v}`;
+      for (const {chapter, verse} of expandRef(ref)) {
+        const key = `${ref.book} ${chapter}:${verse}`;
         if (!seen.has(key)) {
           seen.add(key);
           newKeys.push(key);
@@ -281,8 +309,10 @@ async function indexFile(
       }
     }
 
+    if (vault.getAbstractFileByPath(file.path) !== file) return;
     removeFileFromIndex(file.path);
     _fileCache.set(file.path, newKeys);
+    _fileStats.set(file.path, stat);
     for (const key of newKeys) addVerseNote(key, noteMap.get(key)!);
   } catch {
     // Silently skip unreadable files
@@ -291,28 +321,63 @@ async function indexFile(
 
 // ── Public build / update API ─────────────────────────────────────────────────
 
-const CHUNK_SIZE = 25;
+const CHUNK_SIZE = 4;
 
 export async function buildVaultIndex(
   vault:       Vault,
   exclusions:  string[] = [],
   onProgress?: (done: number, total: number) => void,
+  pluginDir = "",
+  cancelled: () => boolean = () => false,
+  useCache = true,
+  cacheIdentity = "",
 ): Promise<VaultIndex> {
   _index      = new Map();
   _isReady    = false;
   _isScanning = true;
   _fileCache.clear();
+  _fileStats.clear();
+  _fileByVerseSet.clear();
+  cacheVault = vault;
+  cachePath = pluginDir ? `${pluginDir}/vault-index-cache${cacheIdentity ? `-${cacheIdentity}` : ""}.json` : "";
+  if (cachePath && useCache) {
+    try {
+      let raw: string;
+      try { raw = await vault.adapter.read(cachePath); }
+      catch { raw = await vault.adapter.read(`${pluginDir}/vault-index-cache.json`); }
+      const cached = JSON.parse(raw);
+      if (cached.version === 3 || cached.version === 4) for (const [path, record] of Object.entries(cached.files) as Array<[string, any]>) {
+        const file = vault.getAbstractFileByPath(path);
+        if (!(file instanceof TFile) || exclusions.some(f => path.startsWith(f.replace(/\/?$/, "/")))) continue;
+        if (file.stat.mtime !== record.mtime || file.stat.size !== record.size) continue;
+        _fileStats.set(path, {mtime: record.mtime, size: record.size});
+        _fileCache.set(path, record.entries.map((e: any) => e[0]));
+        for (const [key, context] of record.entries) addVerseNote(key, {filePath: path,
+          context: typeof context === "number" ? record.contexts[context] : context});
+      }
+    } catch { /* First run or obsolete cache: rebuild from notes. */ }
+  }
 
-  const files = vault.getMarkdownFiles();
-  const total = files.length;
+  const allFiles = vault.getMarkdownFiles();
+  const total = allFiles.length;
+  const files = allFiles.filter(file => {
+    if (exclusions.some(f => file.path.startsWith(f.replace(/\/?$/, "/")))) return false;
+    const stat = _fileStats.get(file.path);
+    return !stat || stat.mtime !== file.stat.mtime || stat.size !== file.stat.size;
+  });
+  const reused = total - files.length;
 
   for (let i = 0; i < files.length; i += CHUNK_SIZE) {
+    if (cancelled()) { _isScanning = false; return _index; }
     const chunk = files.slice(i, i + CHUNK_SIZE);
-    await Promise.all(chunk.map(f => indexFile(vault, f, exclusions)));
-    onProgress?.(Math.min(i + CHUNK_SIZE, total), total);
+    await Promise.all(chunk.map(f => updateVaultIndexForFile(vault, f, exclusions)));
+    onProgress?.(Math.min(reused + i + CHUNK_SIZE, total), total);
     await new Promise<void>(res => setTimeout(res, 0));
   }
 
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  if (!cancelled() && cachePath) await saveCache();
   _isScanning = false;
   _isReady    = true;
   const cbs = _readyCbs.splice(0);
@@ -330,9 +395,15 @@ export async function updateVaultIndexForFile(
   file:       TFile,
   exclusions: string[] = [],
 ): Promise<void> {
-  await indexFile(vault, file, exclusions);
+  const prior = fileJobs.get(file.path) ?? Promise.resolve();
+  const task = prior.catch(() => {}).then(() => indexFile(vault, file, exclusions));
+  fileJobs.set(file.path, task);
+  await task;
+  if (fileJobs.get(file.path) === task) fileJobs.delete(file.path);
+  if (!_isScanning) scheduleCacheSave();
 }
 
 export function removeVaultIndexFile(filePath: string): void {
   removeFileFromIndex(filePath);
+  scheduleCacheSave();
 }

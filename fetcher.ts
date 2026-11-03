@@ -1,7 +1,10 @@
-import { ScriptureRef, refToString, parseScriptureRefs } from "./parser";
+import { ScriptureRef, refToString, parseScriptureRefs, expandRef } from "./parser";
 import { mapToSwete } from "./versification";
 import { ScriptureScribeSettings } from "./settings";
 import { setKJVStoreRef } from "./searchIndex";
+import { ensureData } from "./dataLoader";
+import { ensureVersificationData } from "./versification";
+import { setVerseRefs } from "./semanticSearch";
 
 export interface VerseResult {
   reference: string;
@@ -9,12 +12,18 @@ export interface VerseResult {
   version: string;
   source: "local" | "api" | "cache";
   offline?: boolean;
+  /** Markdown emphasis from a checked source; text remains plain for search. */
+  formattedText?: string;
 }
 
 const CACHE = new Map<string, { result: VerseResult; exp: number }>();
 const TTL   = 24 * 60 * 60 * 1000;
 let kjvData: Record<string, string> = {};
 let sweteData: Record<string, any> = {};
+let formattedKJV: Record<string, string> = {};
+let enochSupplement: Record<string, string> = {};
+
+export function getFormattedKJV(key: string): string | undefined { return formattedKJV[key]; }
 
 export function setSweteData(data: Record<string, any>): void {
   sweteData = data;
@@ -60,9 +69,16 @@ export function setKJVData(data: Record<string, string>): void {
   }
   kjvData = normalized;
   setKJVStoreRef(kjvData);
+  setVerseRefs(Object.keys(kjvData));
+  CACHE.clear();
 }
 
 export function getKJVData(): Record<string, string> { return kjvData; }
+
+export async function ensureKJVData(): Promise<void> {
+  await ensureData("kjv.json", setKJVData);
+  await ensureData("kjv-formatted.json", data => { formattedKJV = data; });
+}
 
 function cacheKey(ref: string, ver: string) { return `${ref}|${ver}`; }
 
@@ -77,8 +93,9 @@ function fromCache(ref: string, ver: string): VerseResult | null {
   return { ...e.result, source: "cache" };
 }
 
-function toCache(r: VerseResult) {
-  CACHE.set(cacheKey(r.reference, r.version), { result: r, exp: Date.now() + TTL });
+function toCache(r: VerseResult, requestedVersion = r.version) {
+  if (CACHE.size >= 256) CACHE.delete(CACHE.keys().next().value);
+  CACHE.set(cacheKey(r.reference, requestedVersion), { result: r, exp: Date.now() + TTL });
 }
 
 // ── Book-name resolution ───────────────────────────────────────────────────────
@@ -153,58 +170,14 @@ const SWETE_BOOK_MAP: Record<string, string> = {
   "Odes":"Ode",
 };
 
-/**
- * Map English (MT/Hebrew) Psalm chapter to its LXX chapter number.
- *
- * MT Psalms 1–8   → LXX 1–8   (same)
- * MT Psalm 9+10   → LXX 9     (merged; simplify: MT 9→9, MT 10→9)
- * MT Psalms 11–113→ LXX 10–112 (shift −1)
- * MT Psalms 114–115→ LXX 113  (merged; simplify: both→113)
- * MT Psalm 116    → LXX 114+115 (split; simplify: →114)
- * MT Psalms 117–146→ LXX 116–145 (shift −1)
- * MT Psalm 147    → LXX 146+147 (split; simplify: →146)
- * MT Psalms 148–150→ LXX 148–150 (same)
- */
-function mapPsalmMTtoLXX(chapter: number): number {
-  if (chapter <= 8)          return chapter;
-  if (chapter === 9)         return 9;
-  if (chapter === 10)        return 9;   // merged into LXX 9
-  if (chapter <= 113)        return chapter - 1;
-  if (chapter <= 115)        return 113; // MT 114–115 merged into LXX 113
-  if (chapter === 116)       return 114;
-  if (chapter <= 146)        return chapter - 1;
-  if (chapter === 147)       return 146;
-  return chapter; // 148–150 same
-}
-
 function lookupSwete(engRef: ScriptureRef): VerseResult {
-  let ref = mapToSwete(engRef);
   const refStr = refToString(engRef);
-
-  // Apply Psalm MT→LXX chapter offset (versification.ts handles complex cases;
-  // this handles the universal Psalm numbering shift which the mapping JSON can't
-  // express via simple individual-verse keys).
-  if (ref.book === "Psalms") {
-    const lxxChapter = mapPsalmMTtoLXX(ref.chapter);
-    if (lxxChapter !== ref.chapter) {
-      ref = { ...ref, chapter: lxxChapter };
-    }
-  }
-
-  const sweteBook = SWETE_BOOK_MAP[ref.book];
-  if (!sweteBook || !sweteData[sweteBook]) {
-     return { reference: refStr, text: `[${refStr} — not found in LXX data]`, version: "LXX", source: "local" };
-  }
-
   const pairs: string[] = [];
-  const end = ref.verseEnd ?? ref.verseStart;
-  for (let v = ref.verseStart; v <= end; v++) {
-    const txt = sweteData[sweteBook]?.[ref.chapter]?.[v];
-    if (txt) pairs.push(txt);
-  }
-  
-  for (const v of ref.additionalVerses ?? []) {
-    const txt = sweteData[sweteBook]?.[ref.chapter]?.[v];
+  for (const { chapter, verse } of expandRef(engRef)) {
+    const ref = mapToSwete({ ...engRef, chapter, verseStart: verse, verseEnd: undefined,
+      chapterEnd: undefined, chapterOnly: false, additionalVerses: undefined });
+    const sweteBook = SWETE_BOOK_MAP[ref.book];
+    const txt = sweteData[sweteBook]?.[ref.chapter]?.[ref.verseStart];
     if (txt) pairs.push(txt);
   }
 
@@ -218,24 +191,14 @@ function lookupSwete(engRef: ScriptureRef): VerseResult {
 function lookupLocal(ref: ScriptureRef, version = "KJV"): VerseResult {
   if (version === "LXX") return lookupSwete(ref);
 
-  // Collect [verseNumber, text] pairs so we can detect gaps
-  const pairs: Array<{ v: number; text: string }> = [];
-
-  // Resolve which key prefix actually has data in the loaded kjv.json.
-  // This handles both normalized and un-normalized kjv.json builds.
-  const bookName = resolveBookName(ref.book, ref.chapter);
-
-  // Range: verseStart–verseEnd
-  const end = ref.verseEnd ?? ref.verseStart;
-  for (let v = ref.verseStart; v <= end; v++) {
-    const text = kjvData[`${bookName} ${ref.chapter}:${v}`];
-    if (text) pairs.push({ v, text });
-  }
-
-  // Comma-list: additionalVerses
-  for (const v of ref.additionalVerses ?? []) {
-    const text = kjvData[`${bookName} ${ref.chapter}:${v}`];
-    if (text) pairs.push({ v, text });
+  const pairs: Array<{ v: number; text: string; formatted: string }> = [];
+  let supplementUsed = false;
+  for (const { chapter, verse } of expandRef(ref)) {
+    const bookName = resolveBookName(ref.book, chapter);
+    const key = `${bookName} ${chapter}:${verse}`;
+    const text = kjvData[key] ?? enochSupplement[key];
+    if (!kjvData[key] && text) supplementUsed = true;
+    if (text) pairs.push({ v: chapter * 1000 + verse, text, formatted: formattedKJV[key] ?? text });
   }
 
   const refStr = refToString(ref);
@@ -247,7 +210,10 @@ function lookupLocal(ref: ScriptureRef, version = "KJV"): VerseResult {
       combined += gap === 1 ? " " : " \u2026 ";
       combined += pairs[i].text;
     }
-    return { reference: refStr, text: combined, version: "KJV", source: "local" };
+    const numbered = pairs.length > 1;
+    const formattedText = pairs.map(p => `${numbered ? `[${Math.floor(p.v / 1000)}:${p.v % 1000}] ` : ""}${p.formatted}`).join(" ");
+    return { reference: refStr, text: combined, formattedText,
+      version: ref.book === "1 Enoch" ? (supplementUsed ? "1 Enoch · Charles 1917 supplement" : "1 Enoch · vault text") : "KJV", source: "local" };
   }
 
   // Graceful fallback for Apocrypha/Pseudepigrapha (like 1 Enoch) that lack English text
@@ -278,16 +244,15 @@ async function fetchAPI(ref: ScriptureRef, version: string, timeoutMs: number): 
 
   // Build query — handle ranges e.g. "Luke 21:35-36"
   // For comma-lists, fetch the first verse then append extras separately
-  let query = `${ref.book} ${ref.chapter}:${ref.verseStart}`;
-  if (ref.verseEnd && ref.verseEnd !== ref.verseStart) {
-    query += `-${ref.verseEnd}`;
-  }
+  const query = refToString(ref);
 
   const fetchOne = async (q: string): Promise<string | null> => {
     const url = `https://bible-api.com/${encodeURIComponent(q)}?translation=${apiVer}`;
     try {
-      const ctrl  = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      const ctrl = new AbortController();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+      timer = setTimeout(() => ctrl.abort(), timeoutMs);
       const res   = await fetch(url, { signal: ctrl.signal });
       clearTimeout(timer);
       if (!res.ok) return null;
@@ -297,6 +262,7 @@ async function fetchAPI(ref: ScriptureRef, version: string, timeoutMs: number): 
         return data.verses.map((v: any) => v.text.trim()).join(" ");
       }
       return data.text.trim().replace(/\n/g, " ");
+      } finally { if (timer) clearTimeout(timer); }
     } catch { return null; }
   };
 
@@ -306,22 +272,18 @@ async function fetchAPI(ref: ScriptureRef, version: string, timeoutMs: number): 
     if (!primary) return null;
     parts.push(primary);
 
-    // Fetch additional comma-list verses
-    if (ref.additionalVerses && ref.additionalVerses.length > 0) {
-      const extras = await Promise.all(
-        ref.additionalVerses.map(v => fetchOne(`${ref.book} ${ref.chapter}:${v}`))
-      );
-      for (const extra of extras) {
-        if (extra) parts.push(extra);
-      }
-    }
-
     const displayVer = (version !== "KJV" && version !== "WEB" && apiVer === "web") ? `${version} (WEB text)` : (version === "NKJV" ? "NKJV (KJV text)" : version);
     return { reference: refToString(ref), text: parts.join(" "), version: displayVer, source: "api" };
   } catch { return null; }
 }
 
 export async function getScripture(ref: ScriptureRef, settings: ScriptureScribeSettings): Promise<VerseResult> {
+  await ensureKJVData();
+  if (ref.book === "1 Enoch") await ensureData("enoch-charles.json", data => { enochSupplement = data; });
+  if (settings.primaryTranslation === "LXX" || !kjvData[`${ref.book} ${ref.chapter}:${ref.verseStart}`] && ref.book !== "1 Enoch") {
+    await ensureVersificationData();
+    await ensureData("swete-lxx.json", setSweteData);
+  }
   const ver    = settings.primaryTranslation;
   const refStr = refToString(ref);
 
@@ -331,13 +293,14 @@ export async function getScripture(ref: ScriptureRef, settings: ScriptureScribeS
   if (ver === "KJV" || ver === "LXX") {
     const r = lookupLocal(ref, ver);
     // Only cache successful hits — never cache a miss.
-    if (!r.text.startsWith("[")) toCache(r);
+    if (!r.text.startsWith("[")) toCache(r, ver);
     return r;
   }
 
   const api = await fetchAPI(ref, ver, 3000);
-  if (api) { toCache(api); return api; }
+  if (api) { toCache(api, ver); return api; }
 
+  if (!settings.offlineFallback) return {reference: refStr, text: `[${ver} unavailable; offline fallback is disabled.]`, version: ver, source: "api", offline: true};
   // Fallback to local KJV
   const fallback = lookupLocal(ref);
   return { ...fallback, offline: true };

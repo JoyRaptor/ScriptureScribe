@@ -1,7 +1,8 @@
-import { ScriptureRef, refToString } from "./parser";
+import { ScriptureRef, refToString, expandRef } from "./parser";
 import { InterlinearLanguage } from "./settings";
 import { parseMorph, ParsedMorph } from "./morphParser";
-import { mapToSwete } from "./versification";
+import { ensureData } from "./dataLoader";
+import { mapToSwete, ensureVersificationData } from "./versification";
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -48,54 +49,29 @@ let _vaultAdapter: any = null;
 export function initLazyLoader(pluginDir: string, adapter: any): void {
   _pluginDir = pluginDir;
   _vaultAdapter = adapter;
+  lazyBooks.clear();
+  lazyLoading.clear();
 }
 
-/** Cache of lazily loaded per-book data (book name → verse data) */
-const _lazyLxxBooks:  Map<string, Record<string, CompactWord[]>> = new Map();
-const _lazyHebBooks:  Map<string, Record<string, CompactWord[]>> = new Map();
-const _lazyLoading:   Map<string, Promise<Record<string, CompactWord[]> | null>> = new Map();
-
-/** Try to load a per-book JSON file from disk. Returns null on failure. */
-async function loadBookFile(subdir: string, bookName: string): Promise<Record<string, CompactWord[]> | null> {
+/** A small shared LRU bounds original-language memory on every device. */
+const lazyBooks = new Map<string, Record<string, CompactWord[]>>();
+const lazyLoading = new Map<string, Promise<Record<string, CompactWord[]> | null>>();
+async function getLazyBook(subdir: string, bookName: string): Promise<Record<string, CompactWord[]> | null> {
+  const key = `${subdir}:${bookName}`;
+  const cached = lazyBooks.get(key);
+  if (cached) { lazyBooks.delete(key); lazyBooks.set(key, cached); return cached; }
+  const pending = lazyLoading.get(key);
+  if (pending) return pending;
   if (!_vaultAdapter || !_pluginDir) return null;
-  try {
-    const safeFileName = bookName.replace(/[/:*?"<>|]/g, '_') + '.json';
-    const filePath = normalizePath(_pluginDir + '/' + subdir + '/' + safeFileName);
-    const raw = await _vaultAdapter.read(filePath);
-    const data = JSON.parse(raw) as Record<string, CompactWord[]>;
-    console.log(`ScriptureScribe: lazy-loaded ${subdir}/${safeFileName} (${Object.keys(data).length} verses)`);
+  const path = normalizePath(`${_pluginDir}/${subdir}/${bookName.replace(/[/:*?"<>|]/g, "_")}.json`);
+  const task = _vaultAdapter.read(path).then((raw: string) => {
+    const data = normalizeKeys(JSON.parse(raw)) as Record<string, CompactWord[]>;
+    if (lazyBooks.size >= 3) lazyBooks.delete(lazyBooks.keys().next().value);
+    lazyBooks.set(key, data);
     return data;
-  } catch {
-    return null;
-  }
-}
-
-/** Get LXX data for a specific book, loading from disk if needed. */
-async function getLazyLxxBook(bookName: string): Promise<Record<string, CompactWord[]> | null> {
-  if (_lazyLxxBooks.has(bookName)) return _lazyLxxBooks.get(bookName)!;
-  const cacheKey = `lxx:${bookName}`;
-  if (_lazyLoading.has(cacheKey)) return _lazyLoading.get(cacheKey)!;
-  const promise = loadBookFile('lxx-books', bookName).then(data => {
-    if (data) _lazyLxxBooks.set(bookName, data);
-    _lazyLoading.delete(cacheKey);
-    return data;
-  });
-  _lazyLoading.set(cacheKey, promise);
-  return promise;
-}
-
-/** Get Hebrew data for a specific book, loading from disk if needed. */
-async function getLazyHebBook(bookName: string): Promise<Record<string, CompactWord[]> | null> {
-  if (_lazyHebBooks.has(bookName)) return _lazyHebBooks.get(bookName)!;
-  const cacheKey = `heb:${bookName}`;
-  if (_lazyLoading.has(cacheKey)) return _lazyLoading.get(cacheKey)!;
-  const promise = loadBookFile('hebrew-books', bookName).then(data => {
-    if (data) _lazyHebBooks.set(bookName, data);
-    _lazyLoading.delete(cacheKey);
-    return data;
-  });
-  _lazyLoading.set(cacheKey, promise);
-  return promise;
+  }).catch(() => null).finally(() => lazyLoading.delete(key));
+  lazyLoading.set(key, task);
+  return task;
 }
 
 import { normalizeBookName } from "./bibleData";
@@ -228,6 +204,16 @@ export async function fetchInterlinear(
   version: string = "KJV",
   isFallback: boolean = false
 ): Promise<InterlinearWord[]> {
+  const selected = expandRef(ref);
+  if (selected.length > 1) {
+    const result: InterlinearWord[] = [];
+    for (const {chapter, verse} of selected) {
+      result.push(...await fetchInterlinear({...ref, chapter, verseStart: verse,
+        verseEnd: undefined, chapterEnd: undefined, chapterOnly: false, additionalVerses: undefined}, language, version, isFallback));
+    }
+    return result;
+  }
+  if (version === "LXX") await ensureVersificationData();
   const isLXX = version === "LXX";
   const isOT  = OT_BOOKS.has(ref.book);
   const lang: "greek" | "hebrew" = (isOT && !isLXX) ? "hebrew" : "greek";
@@ -253,6 +239,7 @@ export async function fetchInterlinear(
   if (hasData) {
     const words = lookupOffline(lookupRef, store, lang);
     if (words.length > 0 && words[0].original !== "—") {
+      if (INTERLINEAR_CACHE.size >= 128) INTERLINEAR_CACHE.delete(INTERLINEAR_CACHE.keys().next().value);
       INTERLINEAR_CACHE.set(cacheKey, words);
       return words;
     }
@@ -261,12 +248,13 @@ export async function fetchInterlinear(
   // ── 1b. Lazy per-book files (mobile-optimized) ─────────────────────────
   if (_vaultAdapter) {
     const bookData = useLXX
-      ? await getLazyLxxBook(lookupRef.book)
-      : (lang === "hebrew" ? await getLazyHebBook(lookupRef.book) : null);
+      ? await getLazyBook("lxx-books", lookupRef.book)
+      : (lang === "hebrew" ? await getLazyBook("hebrew-books", lookupRef.book) : await getLazyBook("greek-books", lookupRef.book));
     if (bookData) {
       const words = lookupOffline(lookupRef, bookData, lang);
       if (words.length > 0 && words[0].original !== "—") {
-        INTERLINEAR_CACHE.set(cacheKey, words);
+        if (INTERLINEAR_CACHE.size >= 128) INTERLINEAR_CACHE.delete(INTERLINEAR_CACHE.keys().next().value);
+      INTERLINEAR_CACHE.set(cacheKey, words);
         return words;
       }
     }
@@ -420,7 +408,16 @@ export async function fetchStrongsDefinition(
   strongsNum: string
 ): Promise<StrongsDefinition | null> {
   if (!strongsNum) return null;
+  const normalized = strongsNum.toUpperCase().match(/^([GH])0*(\d+)(?:[A-Z])?$/);
+  if (!normalized) return null;
+  strongsNum = `${normalized[1]}${Number(normalized[2])}`;
   if (STRONGS_CACHE.has(strongsNum)) return STRONGS_CACHE.get(strongsNum)!;
+  const shard = `${normalized[1]}${Math.floor(Number(normalized[2]) / 100)}`;
+  await ensureData(`definitions/strongs-${shard}.json`, data => Object.assign(strongsDefs, data));
+  if (strongsNum.startsWith("G")) {
+    await ensureData(`definitions/lxx-${shard}.json`, data => Object.assign(lxxDefs, data));
+    await ensureData(`definitions/lsj-${shard}.json`, data => Object.assign(lsjDefs, data));
+  }
 
   const isGreek = strongsNum.startsWith("G");
   const lang: "greek" | "hebrew" = isGreek ? "greek" : "hebrew";
@@ -437,6 +434,7 @@ export async function fetchStrongsDefinition(
       definition:      lsj ? lsj : (lxxEntry.g + (lxxEntry.d ? "\n\n" + lxxEntry.d : "")),
       language:        lang,
     };
+    if (STRONGS_CACHE.size >= 256) STRONGS_CACHE.delete(STRONGS_CACHE.keys().next().value);
     STRONGS_CACHE.set(strongsNum, def);
     return def;
   }
@@ -453,6 +451,7 @@ export async function fetchStrongsDefinition(
       definition:      lsj ? lsj : (localEntry.d ?? "Definition unavailable."),
       language:        lang,
     };
+    if (STRONGS_CACHE.size >= 256) STRONGS_CACHE.delete(STRONGS_CACHE.keys().next().value);
     STRONGS_CACHE.set(strongsNum, def);
     return def;
   }
@@ -475,7 +474,8 @@ export async function fetchStrongsDefinition(
         definition:      String(data.strongs_def ?? data.kjv_def   ?? data.derivation ?? "Definition unavailable.").trim(),
         language:        lang,
       };
-      STRONGS_CACHE.set(strongsNum, def);
+      if (STRONGS_CACHE.size >= 256) STRONGS_CACHE.delete(STRONGS_CACHE.keys().next().value);
+    STRONGS_CACHE.set(strongsNum, def);
       return def;
     }
   } catch (e) { console.warn(`ScriptureScribe: openscriptures CDN failed for ${strongsNum}`, e); }
@@ -493,7 +493,8 @@ export async function fetchStrongsDefinition(
         definition:      String(data.strongs_def ?? data.definition ?? data.short_def ?? "Definition unavailable.").trim(),
         language:        lang,
       };
-      STRONGS_CACHE.set(strongsNum, def);
+      if (STRONGS_CACHE.size >= 256) STRONGS_CACHE.delete(STRONGS_CACHE.keys().next().value);
+    STRONGS_CACHE.set(strongsNum, def);
       return def;
     }
   } catch (e) { console.warn(`ScriptureScribe: bolls.life strongs failed for ${strongsNum}`, e); }

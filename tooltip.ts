@@ -1,3 +1,5 @@
+import { mapToHebrew } from "./versification";
+import { renderPassage } from "./textFormatting";
 import { App, Editor } from "obsidian";
 import type { VerseCard } from "./verseCard";
 import { ScriptureRef, refToString, parseScriptureRefs } from "./parser";
@@ -12,7 +14,7 @@ import {
 import type { EmbedStyle } from "./settings";
 import { buildSimpleDefinition, buildSimpleDom, buildAdvancedDefinition, makeSpeakerLink, makeGlobeLink, isDefAdvanced, toggleDefAdvanced, DefCallbacks, setDefPalette } from "./defHelpers";
 import { getKJVText } from "./searchIndex";
-import { getCrossRefs, isCrossRefLoaded } from "./crossRefs";
+import { ensureCrossRefData, getCrossRefs, isCrossRefLoaded } from "./crossRefs";
 import {
   BookPalette,
   getBookPalette,
@@ -50,6 +52,7 @@ export class ScriptureTooltip {
 
   /** Full-screen verse card (set by the plugin); used instead of the tooltip in Card Mode */
   card: VerseCard | null = null;
+  cardContext: ((ref: ScriptureRef, text: string, editor: Editor | null) => {noteText?: string; contrastText?: string}) | null = null;
 
   // ── Card trigger keys (Card Mode can require holding Shift / Ctrl) ──
   private mods = { shift: false, ctrl: false };
@@ -336,7 +339,7 @@ export class ScriptureTooltip {
     const verse = await getScripture(ref, this.settings);
     if (this.currentRef !== ref) return; // ref changed while fetching
 
-    textEl.textContent = verse.text;
+    renderPassage(textEl, verse.formattedText ?? verse.text);
     verLbl.textContent = verse.version;
     srcEl.textContent  = verse.source === "local" ? "Local KJV"
                        : verse.source === "cache"  ? `Cache · ${verse.version}`
@@ -346,6 +349,8 @@ export class ScriptureTooltip {
     this.wireVersion(ref, editor, verLbl);
     this.wireEmbed(ref, editor);
     this.wireInterlinear(ref);
+    await ensureCrossRefData();
+    if (this.currentRef !== ref) return;
     this.renderCrossRefChips(ref, editor);
 
     // If interlinear was active from the previous verse, open it immediately
@@ -356,18 +361,29 @@ export class ScriptureTooltip {
 
   // ── Card Mode ─────────────────────────────────────────────────
 
-  private async showAsCard(ref: ScriptureRef): Promise<void> {
+  private async showAsCard(ref: ScriptureRef, force = false): Promise<void> {
     const verse = await getScripture(ref, this.settings);
     if (this.currentRef !== ref || !this.card) return; // left the verse while fetching
-    this.card.show({
+    await this.card.show({
       key: refToString(ref),
       reference: refToString(ref),
       text: verse.text,
+      formattedText: verse.formattedText,
+      lazyContext: this.cardContext ? () => this.cardContext!(ref, verse.text, this._lastEditor) : undefined,
       version: verse.version,
       book: ref.book,
       testament: OT_BOOKS.has(ref.book) ? "ot" : "nt",
       palette: { base: this.P, light: this.PL, mid: this.PM, dark: this.PD },
-    });
+    }, force);
+  }
+
+  getRecordingEditor(): Editor | null { return this._lastEditor; }
+
+  async showRecordingRef(ref: ScriptureRef, editor: Editor): Promise<void> {
+    this.cancelHide();
+    this.currentRef = ref;
+    this._lastEditor = editor;
+    await this.showAsCard(ref, true);
   }
 
   /**
@@ -379,7 +395,7 @@ export class ScriptureTooltip {
     const ref = this.currentRef;
     this.settings.display.cardMode = on;
     await this.saveSettings();
-    if (on) this.card?.warm(); else this.card?.hide();
+    if (on) this.card?.warm(); else this.card?.hide(true);
     if (!preview) return;
     this.hide();
     if (on && ref) {
@@ -565,6 +581,7 @@ export class ScriptureTooltip {
   private updateIntBtn(): void {
     const btn = this.q<HTMLElement>(".ss-int-btn");
     if (!btn) return;
+    if (this.currentRef && this.interlinearState === "MT") btn.title = `Hebrew address: ${refToString(mapToHebrew(this.currentRef))}`;
 
     if (this.interlinearState !== "off") {
       btn.textContent = this.interlinearState === "MT" ? "\u05d0" : "\u03b1";
@@ -594,6 +611,7 @@ export class ScriptureTooltip {
     const lang  = this.interlinearState === "MT" ? "hebrew" : "greek";
     const version = this.interlinearState === "LXX" ? "LXX" : this.settings.primaryTranslation;
     const words = await fetchInterlinear(ref, lang === "greek" ? "greek" : "hebrew", version);
+    if (this.currentRef !== ref || this.interlinearState === "off") return;
     grid.innerHTML = "";
 
     if (!words.length) {
@@ -994,7 +1012,7 @@ export class ScriptureTooltip {
         const t = this.q<HTMLElement>(".ss-text")!;
         t.textContent = "Loading…";
         const verse = await getScripture(ref, this.settings);
-        t.textContent = verse.text;
+        if (this.currentRef === ref) renderPassage(t, verse.formattedText ?? verse.text);
       };
       dd.appendChild(item);
     }

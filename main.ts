@@ -1,9 +1,9 @@
 import {
   Editor, MarkdownView, Plugin, TFile, Menu,
-  MarkdownPostProcessorContext, normalizePath, WorkspaceLeaf, Platform, Notice
+  MarkdownPostProcessorContext, Notice, Platform
 } from "obsidian";
 import { ViewPlugin, DecorationSet, Decoration, ViewUpdate, EditorView } from "@codemirror/view";
-import { RangeSetBuilder } from "@codemirror/state";
+import { syntaxTree } from "@codemirror/language";
 import { ScriptureScribeSettings, DEFAULT_SETTINGS } from "./settings";
 import { parseScriptureRefs, ScriptureRef, refToString } from "./parser";
 import { ScriptureTooltip } from "./tooltip";
@@ -11,16 +11,14 @@ import { VerseCard } from "./verseCard";
 import { seedSkinFolder, readSkin, BUILTIN_SKIN_HTML } from "./verseCardSkins";
 import { embedAllRefs } from "./embedEngine";
 import { ScriptureScribeSettingTab } from "./settingsTab";
-import { setKJVData, getKJVData, setSweteData } from "./fetcher";
-import { setGreekData, setHebrewData, setLXXData, setStrongsData, setLXXDefsData, setLSJData, getGreekData, getHebrewData, getLXXData, initLazyLoader } from "./interlinear";
+import { getKJVData, ensureKJVData } from "./fetcher";
+import { initLazyLoader } from "./interlinear";
 import { ScriptureReadingPanel, READING_PANEL_VIEW_TYPE } from "./readingPanel";
-import { setCrossRefData } from "./crossRefs";
-import { setVersificationData } from "./versification";
-import { buildSearchIndex } from "./searchIndex";
-import { buildVaultIndex, updateVaultIndexForFile, removeVaultIndexFile, setVaultHighlightSettings } from "./vaultIndex";
-import { getVerseOfTheDay } from "./verseOfTheDay";
+import { SearchStores, configureSearchLoader } from "./searchIndex";
+import { stopVaultIndex, buildVaultIndex, updateVaultIndexForFile, removeVaultIndexFile, setVaultHighlightSettings } from "./vaultIndex";
 import { formatCitation } from "./citation";
-import { loadVerseVectors, setVerseRefs, loadEmbeddingPipeline } from "./semanticSearch";
+import { configureSemanticSearch } from "./semanticSearch";
+import { configureDataLoader, clearDataLoader } from "./dataLoader";
 
 function buildCM6Plugin(getTooltip: () => ScriptureTooltip | null, getSettings: () => ScriptureScribeSettings) {
   return ViewPlugin.fromClass(class {
@@ -28,28 +26,46 @@ function buildCM6Plugin(getTooltip: () => ScriptureTooltip | null, getSettings: 
     constructor(view: EditorView) { this.decorations = this.build(view); }
     update(u: ViewUpdate) { if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view); }
     build(view: EditorView): DecorationSet {
-      const builder = new RangeSetBuilder<Decoration>();
-      for (const { from, to } of view.visibleRanges) {
+      const marks: any[] = [];
+      for (const visible of view.visibleRanges) {
+        let first = view.state.doc.lineAt(visible.from);
+        while (first.number > 1 && first.text.trim() && !/^\s*#{1,6}\s/.test(first.text)) {
+          const previous = view.state.doc.line(first.number - 1);
+          if (!previous.text.trim() || /^\s*#{1,6}\s/.test(previous.text)) break;
+          first = previous;
+        }
+        const from = first.from;
+        const to = view.state.doc.lineAt(visible.to).to;
         const text = view.state.doc.sliceString(from, to);
-        const refs = parseScriptureRefs(text);
+        const excluded: Array<{from: number; to: number}> = [];
+        syntaxTree(view.state).iterate({ from, to, enter(node) {
+          if (/code|link|url|hmd-frontmatter/i.test(node.name)) {
+            excluded.push({from: node.from, to: node.to});
+            return false;
+          }
+        }});
+        const allowed = (start: number, end: number) => !excluded.some(r => r.from < from + end && r.to > from + start);
+        const refs = parseScriptureRefs(text, getSettings().primaryTranslation).filter(r => allowed(r.start, r.end));
         for (const ref of refs) {
-          builder.add(from + ref.start, from + ref.end, Decoration.mark({
+          if (from + ref.end <= visible.from || from + ref.start >= visible.to) continue;
+          marks.push(Decoration.mark({
             class: "ss-ref-highlight",
             attributes: { "data-ref": refToString(ref) },
-          }));
+          }).range(from + ref.start, from + ref.end));
         }
 
         // Strong's numbers (G# / H#)
         const strongsRegex = /\b[gh]\d{1,5}\b/gi;
         let match;
         while ((match = strongsRegex.exec(text)) !== null) {
-          builder.add(from + match.index, from + match.index + match[0].length, Decoration.mark({
+          if (!allowed(match.index, match.index + match[0].length)) continue;
+          marks.push(Decoration.mark({
             class: "ss-strongs-highlight",
             attributes: { "data-strongs": match[0] },
-          }));
+          }).range(from + match.index, from + match.index + match[0].length));
         }
       }
-      return builder.finish();
+      return Decoration.set(marks, true);
     }
   }, { decorations: v => v.decorations });
 }
@@ -57,46 +73,39 @@ function buildCM6Plugin(getTooltip: () => ScriptureTooltip | null, getSettings: 
 export default class ScriptureScribePlugin extends Plugin {
   settings!: ScriptureScribeSettings;
   tooltip!: ScriptureTooltip;
+  private scanStarted = false;
+  private disposed = false;
+  private recordingIndex = -1;
+  private panelViews = new Set<ScriptureReadingPanel>();
+  private cacheIdentity = "";
+  private scanExclusions = "";
+  private scanPromise: Promise<void> | null = null;
   private hoverTimer: ReturnType<typeof setTimeout> | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    try {
+      const key = "scripture-scribe-index-device";
+      this.cacheIdentity = localStorage.getItem(key) ?? crypto.randomUUID();
+      localStorage.setItem(key, this.cacheIdentity);
+      this.cacheIdentity = this.cacheIdentity.replace(/[^a-zA-Z0-9-]/g, "");
+    } catch { this.cacheIdentity = Platform.isMobile ? "mobile" : "desktop"; }
     // Initialize the lazy per-book loader so interlinear data can be
     // fetched on demand (crucial for mobile memory management).
     initLazyLoader(this.manifest.dir!, this.app.vault.adapter);
 
-    // Offload heavy data parsing and search indexing to the background.
-    // This prevents Obsidian from warning about slow startup times
-    // and prevents mobile OS watchdogs from crashing the plugin during load.
-    Promise.all([
-      this.loadKJVData(),
-      this.loadSweteData(),
-      this.loadInterlinearData(),
-      this.loadCrossRefData(),
-      this.loadVersificationData()
-    ]).then(async () => {
-      // Build the search index (Strongs/Morph) asynchronously to prevent mobile freezing
-      await buildSearchIndex(getGreekData(), getHebrewData(), getLXXData());
+    configureDataLoader(this.manifest.dir!, this.app.vault.adapter);
+    configureSemanticSearch(this.app, this.manifest.dir!);
+    configureSearchLoader(() => this.loadSearchData());
+    // Registration is cheap; data is loaded by the feature that needs it.
+    this.app.workspace.onLayoutReady(() => {
+      if (this.getReadingPanel()) void this.startVaultScan();
     });
-
-    // Semantic Search — load pre-shipped vectors.bin, then lazily probe for
-    // an embedding runtime (Smart Connections first, Xenova second, TF-IDF always).
-    loadVerseVectors(this.app, this.manifest.dir!).then(() => {
-      // After vectors load, give TF-IDF the full verse ref list so it can
-      // scan even when the embedding pipeline isn't available.
-      const kjv = getKJVData();
-      setVerseRefs(Object.keys(kjv));
-      // Begin probing for an embedding runtime in the background.
-      // Priority: Smart Connections bridge → Xenova → TF-IDF fallback.
-      loadEmbeddingPipeline(this.app);
-    });
-
-    // Vault scan — runs in the background, does not block plugin startup
-    this.startVaultScan();
 
     // Incremental index updates when notes are created, changed, or deleted
     // Helper: update index for a file then immediately refresh panel highlights
     const indexAndRefresh = async (file: TFile) => {
+      if (!this.scanStarted || this.disposed) return;
       await updateVaultIndexForFile(this.app.vault, file, this.getVaultScanExclusions());
       this.getReadingPanel()?.onVaultIndexReady();
     };
@@ -121,6 +130,7 @@ export default class ScriptureScribePlugin extends Plugin {
     // you pause, not on every keystroke. Catches new scripture addresses
     // before the file is saved to disk.
     let editorChangeTimer: ReturnType<typeof setTimeout> | null = null;
+    this.register(() => { if (editorChangeTimer) clearTimeout(editorChangeTimer); });
     this.registerEvent(this.app.workspace.on("editor-change", (_editor, info) => {
       const file = (info as any).file as TFile | undefined;
       if (!file || file.extension !== "md") return;
@@ -146,13 +156,28 @@ export default class ScriptureScribePlugin extends Plugin {
       () => this.settings.display.cardHideCursor !== false,
     );
     if (this.settings.display.cardMode) this.tooltip.card.warm();
+    // Bible text loads on demand; pre-load it shortly after startup so the first hover is instant.
+    window.setTimeout(() => { void ensureKJVData(); }, 1500);
+    this.tooltip.card.onNavigate = direction => { void this.navigateRecordingCard(direction); };
+    this.tooltip.cardContext = (ref, text, editor) => this.recordingContext(ref, text, editor);
+    this.registerDomEvent(document, "keydown", (event: KeyboardEvent) => {
+      if (!this.tooltip.card?.isVisible() || event.isComposing) return;
+      if (event.key === "Escape") { event.preventDefault(); this.tooltip.card.hide(true); }
+      if (event.altKey && (event.key === "ArrowRight" || event.key === "ArrowLeft")) {
+        event.preventDefault(); void this.navigateRecordingCard(event.key === "ArrowRight" ? 1 : -1);
+      }
+    });
 
     this.addSettingTab(new ScriptureScribeSettingTab(this.app, this));
 
     // Register the persistent reading panel view type
     this.registerView(
       READING_PANEL_VIEW_TYPE,
-      (leaf) => new ScriptureReadingPanel(leaf, this.settings, () => this.saveSettings())
+      (leaf) => {
+        const view = new ScriptureReadingPanel(leaf, this.settings, () => this.saveSettings());
+        this.panelViews.add(view);
+        return view;
+      }
     );
 
     // Persist lastSide when the panel leaf is moved between sidebars
@@ -168,7 +193,7 @@ export default class ScriptureScribePlugin extends Plugin {
     // Reading mode post-processor
     this.registerMarkdownPostProcessor((el: HTMLElement, _ctx: MarkdownPostProcessorContext) => {
       const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-      this.highlightInElement(el, view?.editor ?? null);
+      if (!this.isExcluded(_ctx.sourcePath)) this.highlightInElement(el, view?.editor ?? null);
     });
 
     // Hover — works for both CM6 decorated spans and reading mode spans
@@ -203,7 +228,8 @@ export default class ScriptureScribePlugin extends Plugin {
 
       // Scripture Ref Hover
       const refAttr = refSpan!.dataset.ref ?? refSpan!.textContent ?? "";
-      const refs = parseScriptureRefs(refAttr);
+      const refs = parseScriptureRefs(refAttr, this.settings.primaryTranslation);
+      if (refs.length) refs[0].raw = refSpan!.textContent ?? refs[0].raw;
       if (!refs.length) return;
 
       const behavior = this.settings.display.referenceClickBehavior;
@@ -236,11 +262,17 @@ export default class ScriptureScribePlugin extends Plugin {
     this.addCommand({ id: "open-reading-panel", name: "Open Reading Panel",
       callback: () => this.activatePanel() });
     this.addCommand({ id: "toggle-card-mode", name: "Toggle Card Mode (full-screen verse cards)",
+      hotkeys: [{modifiers: ["Mod", "Alt"], key: "c"}],
       callback: async () => {
         const on = !this.settings.display.cardMode;
         await this.tooltip.setCardMode(on);
         new Notice(on ? "Card Mode on — hover a verse for a full-screen card" : "Card Mode off — tooltips restored", 2000);
       }});
+    this.addCommand({ id: "next-recording-card", name: "Next recording card", callback: () => { void this.navigateRecordingCard(1); } });
+    this.addCommand({ id: "previous-recording-card", name: "Previous recording card", callback: () => { void this.navigateRecordingCard(-1); } });
+    this.addCommand({ id: "emphasis-recording-card", name: "Card: toggle note emphasis", callback: () => this.tooltip.card?.toggleEmphasis() });
+    this.addCommand({ id: "contrast-recording-card", name: "Card: toggle contrast text", callback: () => this.tooltip.card?.toggleContrast() });
+    this.addCommand({ id: "pin-recording-card", name: "Pin or unpin recording card", callback: () => this.tooltip.card?.togglePin() });
     this.addCommand({ id: "search-strongs", name: "Search Strong's number",
       callback: async () => {
         const panel = await this.activatePanel();
@@ -326,7 +358,12 @@ export default class ScriptureScribePlugin extends Plugin {
   }
 
   onunload(): void {
+    this.disposed = true;
+    clearDataLoader();
+    stopVaultIndex();
     this.tooltip?.destroy();
+    for (const view of this.panelViews) if (view.isOpen) void view.onClose();
+    this.panelViews.clear();
     if (this.hoverTimer) clearTimeout(this.hoverTimer);
   }
 
@@ -355,101 +392,25 @@ export default class ScriptureScribePlugin extends Plugin {
     const vh = this.settings.vaultHighlight;
     setVaultHighlightSettings(vh.opacity, vh.textColor);
     // Re-paint highlights with the new settings
-    if (panel) panel.onVaultIndexReady();
+    if (panel) { panel.onVaultIndexReady(); void this.startVaultScan(); }
   }
 
-  private async loadCrossRefData(): Promise<void> {
-    try {
-      const path = normalizePath(this.manifest.dir + "/cross-refs.json");
-      const raw  = await this.app.vault.adapter.read(path);
+  private async loadSearchData(): Promise<SearchStores> {
+    const stores = {} as SearchStores;
+    for (const language of ["greek", "hebrew", "lxx"] as const) {
+      const raw = await this.app.vault.adapter.read(`${this.manifest.dir}/search-data/${language}.json`);
       const data = JSON.parse(raw);
-      setCrossRefData(data);
-      console.log(`ScriptureScribe: ${Object.keys(data).length} cross-reference entries loaded`);
-    } catch (e) {
-      console.info("ScriptureScribe: cross-refs.json not found — cross-references unavailable.");
-      setCrossRefData({});
+      const store: SearchStores[typeof language] = {};
+      for (const key of Object.keys(data.verses)) store[key] = data.verses[key].map((id: number) => data.words[id]);
+      stores[language] = store;
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
     }
-  }
-
-  private async loadVersificationData(): Promise<void> {
-    try {
-      const path = normalizePath(this.manifest.dir + "/versification-mapping.json");
-      const raw  = await this.app.vault.adapter.read(path);
-      const data = JSON.parse(raw);
-      setVersificationData(data);
-      console.log(`ScriptureScribe: versification mapping loaded`);
-    } catch (e) {
-      console.info("ScriptureScribe: versification-mapping.json not found — versification mapping unavailable.");
-      setVersificationData({});
-    }
-  }
-
-  private async loadKJVData(): Promise<void> {
-    try {
-      const path = normalizePath(this.manifest.dir + "/kjv.json");
-      const raw  = await this.app.vault.adapter.read(path);
-      const data = JSON.parse(raw);
-      setKJVData(data);
-      console.log(`ScriptureScribe: ${Object.keys(data).length} KJV verses loaded`);
-    } catch (e) {
-      console.warn("ScriptureScribe: kjv.json not found — offline KJV unavailable.", e);
-      setKJVData({});
-    }
-  }
-
-  private async loadSweteData(): Promise<void> {
-    try {
-      const path = normalizePath(this.manifest.dir + "/swete-lxx.json");
-      const raw  = await this.app.vault.adapter.read(path);
-      const data = JSON.parse(raw);
-      setSweteData(data);
-      console.log(`ScriptureScribe: Greek LXX (Swete) text loaded`);
-    } catch (e) {
-      console.info("ScriptureScribe: swete.json not found — offline LXX text unavailable.");
-      setSweteData({});
-    }
-  }
-
-  private async loadInterlinearData(): Promise<void> {
-    const files: Array<{ file: string; setter: (d: any) => void; label: string }> = [
-      { file: "strongs-greek.json",       setter: setGreekData,   label: "Greek interlinear" },
-      { file: "strongs-hebrew.json",      setter: setHebrewData,  label: "Hebrew interlinear" },
-      { file: "strongs-lxx.json",         setter: setLXXData,     label: "LXX interlinear" },
-      { file: "strongs-definitions.json", setter: setStrongsData, label: "Strong's definitions" },
-      { file: "strongs-greek-lxx.json",   setter: setLXXDefsData, label: "LXX definitions" },
-      { file: "lexicon-lsj.json",         setter: setLSJData,     label: "LSJ lexicon" },
-    ];
-    for (const { file, setter, label } of files) {
-      if (Platform.isMobile) {
-        // On mobile, skip monolithic LXX/Hebrew files — lazy per-book loading handles these.
-        // This saves ~60MB of RAM at startup while keeping 100% offline capability.
-        if (file === "strongs-lxx.json" || file === "strongs-hebrew.json" || file === "lexicon-lsj.json") {
-          console.info(`ScriptureScribe: ${file} → skipping massive file to save memory on mobile.`);
-          continue;
-        }
-      }
-      try {
-        const path = normalizePath(this.manifest.dir + "/" + file);
-        let raw: string | null = await this.app.vault.adapter.read(path);
-        let data: any = JSON.parse(raw);
-        setter(data);
-        console.log(`ScriptureScribe: ${label} loaded (${Object.keys(data).length} entries)`);
-        
-        // Explicitly clear references to allow GC to sweep the massive string/object overhead
-        raw = null;
-        data = null;
-      } catch (e) {
-        console.info(`ScriptureScribe: ${file} not found — ${label} will use online API.`);
-      }
-      // Yield to main thread to allow garbage collection of large JSON strings
-      // This prevents Out-Of-Memory crashes on mobile devices. Desktop has the
-      // headroom to skip the long pause — a short yield is enough there.
-      await new Promise(r => setTimeout(r, Platform.isMobile ? 250 : 25));
-    }
+    return stores;
   }
 
   // Reading mode only — CM6 handles the editor
   private processReadingViews(): void {
+    if (this.disposed) return;
     this.app.workspace.iterateAllLeaves(leaf => {
       const view = leaf.view;
       if (!(view instanceof MarkdownView)) return;
@@ -462,34 +423,36 @@ export default class ScriptureScribePlugin extends Plugin {
   }
 
   private highlightInElement(rootEl: HTMLElement, editor: Editor | null): void {
-    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT, {
-      acceptNode: (node: Node) => {
-        const p = node.parentElement;
-        if (!p) return NodeFilter.FILTER_REJECT;
-        const tag = p.tagName?.toLowerCase() ?? "";
-        if (["code","pre","a","script","style"].includes(tag)) return NodeFilter.FILTER_REJECT;
-        if (p.classList.contains("ss-ref-highlight")) return NodeFilter.FILTER_REJECT;
-        if (p.closest("code,pre,a")) return NodeFilter.FILTER_REJECT;
-        return NodeFilter.FILTER_ACCEPT;
+    const groups = new Map<Element, Text[]>();
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      const p = node.parentElement;
+      if (!p || p.closest("script,style,.frontmatter,.metadata-container")) continue;
+      const block = p.closest("p,li,td,th,h1,h2,h3,h4,h5,h6") ?? rootEl;
+      const group = groups.get(block) ?? [];
+      group.push(node as Text);
+      groups.set(block, group);
+    }
+    for (const nodes of groups.values()) {
+      let content = "";
+      const offsets: number[] = [];
+      for (const tn of nodes) {
+        offsets.push(content.length);
+        const text = tn.textContent ?? "";
+        content += tn.parentElement?.closest("code,pre,a") ? text.replace(/[^\r\n]/g, " ") : text;
       }
-    });
-    const nodes: Text[] = [];
-    let n: Node | null;
-    while ((n = walker.nextNode())) nodes.push(n as Text);
-    for (const tn of nodes) {
-      const text = tn.textContent ?? "";
-      const refs = parseScriptureRefs(text);
-      
-      // Also look for Strong's numbers
-      const strongsMatches: Array<{start: number, end: number, text: string, isStrongs: boolean}> = [];
-      const strongsRegex = /\b[gh]\d{1,5}\b/gi;
-      let match;
-      while ((match = strongsRegex.exec(text)) !== null) {
-        strongsMatches.push({ start: match.index, end: match.index + match[0].length, text: match[0], isStrongs: true });
-      }
-
-      if (refs.length || strongsMatches.length) {
-        this.wrapReadingMatches(tn, refs, strongsMatches, editor);
+      const refs = parseScriptureRefs(content, this.settings.primaryTranslation);
+      for (let i = 0; i < nodes.length; i++) {
+        const tn = nodes[i];
+        if (tn.parentElement?.closest("code,pre,a,.ss-ref-highlight,.ss-strongs-highlight")) continue;
+        const offset = offsets[i];
+        const text = tn.textContent ?? "";
+        const local = refs.filter(r => r.start < offset + text.length && r.end > offset).map(r => ({...r,
+          start: Math.max(r.start - offset, 0), end: Math.min(r.end - offset, text.length),
+          raw: text.slice(Math.max(r.start - offset, 0), Math.min(r.end - offset, text.length))}));
+        const strongs = [...text.matchAll(/\b[gh]\d{1,5}\b/gi)].map(m => ({start: m.index!, end: m.index! + m[0].length, text: m[0]}));
+        if (local.length || strongs.length) this.wrapReadingMatches(tn, local, strongs, editor);
       }
     }
   }
@@ -517,39 +480,12 @@ export default class ScriptureScribePlugin extends Plugin {
         span.className = "ss-ref-highlight";
         span.textContent = ref.raw;
         span.dataset.ref = refToString(ref);
-        span.addEventListener("mouseenter", (e: MouseEvent) => {
-          this.cancelHoverTimer();
-          const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-          const ed = view?.editor ?? editor;
-          const behavior = this.settings.display.referenceClickBehavior;
-          this.hoverTimer = setTimeout(() => {
-            if (behavior === "tooltip" || behavior === "both") {
-              if (ed) this.tooltip?.show(ref, e.clientX, e.clientY, ed);
-            }
-            if (behavior === "panel" || behavior === "both") {
-              this.sendToPanel(ref, ed);
-            }
-          }, this.settings.hoverSettings.triggerDelayMs);
-        });
       } else {
         const num = m.data as string;
         span.className = "ss-strongs-highlight";
         span.textContent = num;
         span.dataset.strongs = num;
-        span.addEventListener("mouseenter", (e: MouseEvent) => {
-          this.cancelHoverTimer();
-          const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-          const ed = view?.editor ?? editor;
-          this.hoverTimer = setTimeout(() => {
-            if (ed) this.tooltip?.showStrongs(num, e.clientX, e.clientY, ed);
-          }, this.settings.hoverSettings.triggerDelayMs);
-        });
       }
-      
-      span.addEventListener("mouseleave", () => {
-        this.cancelHoverTimer();
-        this.tooltip?.scheduleHide();
-      });
       frag.appendChild(span);
       last = m.end;
     }
@@ -564,6 +500,12 @@ export default class ScriptureScribePlugin extends Plugin {
    * otherwise null — does NOT open a new leaf.
    */
   private getReadingPanel(): ScriptureReadingPanel | null {
+    // On mobile, sidebar leaves can be absent from getLeavesOfType while their
+    // view remains mounted in the mobile drawer.
+    for (const view of this.panelViews) {
+      if (view.isOpen) return view;
+      this.panelViews.delete(view);
+    }
     const leaves = this.app.workspace.getLeavesOfType(READING_PANEL_VIEW_TYPE);
     if (!leaves.length) return null;
     const view = leaves[0].view;
@@ -584,11 +526,13 @@ export default class ScriptureScribePlugin extends Plugin {
    * stored in settings.readingPanel.lastSide. Returns the view instance.
    */
   async activatePanel(): Promise<ScriptureReadingPanel | null> {
+    void this.startVaultScan();
     const existing = this.getReadingPanel();
     if (existing) {
-      this.app.workspace.revealLeaf(
-        this.app.workspace.getLeavesOfType(READING_PANEL_VIEW_TYPE)[0]
+      await this.app.workspace.revealLeaf(
+        existing.leaf
       );
+      await existing.ready;
       return existing;
     }
 
@@ -599,9 +543,11 @@ export default class ScriptureScribePlugin extends Plugin {
 
     if (!leaf) return null;
     await leaf.setViewState({ type: READING_PANEL_VIEW_TYPE, active: true });
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
+    await leaf.loadIfDeferred();
 
     const view = leaf.view;
+    if (view instanceof ScriptureReadingPanel) await view.ready;
     return view instanceof ScriptureReadingPanel ? view : null;
   }
 
@@ -623,6 +569,45 @@ export default class ScriptureScribePlugin extends Plugin {
     }
   }
 
+  private async navigateRecordingCard(direction: number): Promise<void> {
+    if (this.tooltip.card?.step(direction)) return;
+    const editor = this.app.workspace.activeEditor?.editor
+      ?? this.app.workspace.getActiveViewOfType(MarkdownView)?.editor
+      ?? this.tooltip.getRecordingEditor();
+    if (!editor) return;
+    const refs = parseScriptureRefs(editor.getValue(), this.settings.primaryTranslation);
+    if (!refs.length) return;
+    const key = this.tooltip.card?.currentKeyOf();
+    if (this.recordingIndex < 0 || refToString(refs[this.recordingIndex] ?? refs[0]) !== key) {
+      this.recordingIndex = refs.findIndex(ref => refToString(ref) === key);
+    }
+    this.recordingIndex = (this.recordingIndex + direction + refs.length) % refs.length;
+    await this.tooltip.showRecordingRef(refs[this.recordingIndex], editor);
+  }
+
+  private recordingContext(ref: ScriptureRef, text: string, editor: Editor | null): {noteText?: string; contrastText?: string} {
+    if (!editor) return {};
+    const content = editor.getValue();
+    const near = editor.posToOffset(editor.getCursor());
+    const matches = parseScriptureRefs(content, this.settings.primaryTranslation).filter(r => refToString(r) === refToString(ref));
+    if (!matches.length) return {};
+    const match = matches.reduce((a, b) => Math.abs(a.start - near) < Math.abs(b.start - near) ? a : b);
+    const start = content.lastIndexOf("\n\n", match.start);
+    const end = content.indexOf("\n\n", match.end);
+    const paragraph = content.slice(start < 0 ? 0 : start + 2, end < 0 ? content.length : end);
+    let noteText = text;
+    for (const emphasis of paragraph.matchAll(/(\*\*\*|\*\*)([^*]+)\1/g)) {
+      const phrase = emphasis[2];
+      const at = noteText.toLowerCase().indexOf(phrase.toLowerCase());
+      if (at >= 0) noteText = noteText.slice(0, at) + emphasis[1] + noteText.slice(at, at + phrase.length) + emphasis[1] + noteText.slice(at + phrase.length);
+    }
+    const slash = paragraph.indexOf(" / ");
+    const previous = start >= 0 ? content.slice(0, start).split(/\n\s*\n/).pop()?.trim() : "";
+    const contrastText = (slash >= 0 ? paragraph.slice(0, slash) : previous) ?? "";
+    return {noteText: noteText !== text ? noteText : undefined,
+      contrastText: contrastText && contrastText.length <= 1000 && !/^#/.test(contrastText) ? contrastText : undefined};
+  }
+
   private cancelHoverTimer(): void {
     if (this.hoverTimer !== null) { clearTimeout(this.hoverTimer); this.hoverTimer = null; }
   }
@@ -633,18 +618,22 @@ export default class ScriptureScribePlugin extends Plugin {
     return [...base, ...(s.vaultScan.additionalExclusions ?? [])];
   }
 
-  async startVaultScan(): Promise<void> {
+  async startVaultScan(force = false): Promise<void> {
+    if (force) { await this.scanPromise; this.scanPromise = null; }
     const exclusions = this.getVaultScanExclusions();
-    const total = this.app.vault.getMarkdownFiles().length;
-    console.log(`ScriptureScribe: starting vault scan (${total} notes)…`);
-    await buildVaultIndex(this.app.vault, exclusions, (done, t) => {
-      if (done === t || done % 100 === 0) {
-        console.debug(`ScriptureScribe vault scan: ${done}/${t}`);
-      }
-    });
-    // If the reading panel is already open, refresh it so highlights appear
-    const panel = this.getReadingPanel();
-    if (panel) panel.onVaultIndexReady();
+    const signature = JSON.stringify(exclusions);
+    if (this.scanPromise && signature === this.scanExclusions) return this.scanPromise;
+    if (this.scanPromise) await this.scanPromise;
+    this.scanExclusions = signature;
+    this.scanStarted = true;
+    this.scanPromise = buildVaultIndex(this.app.vault, exclusions, undefined,
+      this.manifest.dir!, () => this.disposed, !force, this.cacheIdentity).then(() => {
+        if (!this.disposed) this.getReadingPanel()?.onVaultIndexReady();
+      }).catch(error => {
+        this.scanPromise = null;
+        console.error("ScriptureScribe: vault scan failed", error);
+      });
+    return this.scanPromise;
   }
 
   private isExcluded(filePath: string): boolean {

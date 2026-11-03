@@ -21,34 +21,19 @@
 import { App } from "obsidian";
 import { getKJVText } from "./searchIndex";
 
-// ── Environment Patches for Obsidian ──────────────────────────────────────────
-// These MUST run before @xenova/transformers is imported.
-if (typeof (globalThis as any).__dirname === "undefined") {
-  (globalThis as any).__dirname = "/";
-}
-if (typeof (globalThis as any).process === "undefined") {
-  (globalThis as any).process = { env: { NODE_DEBUG: false } };
-}
-if (!(globalThis as any).process.env) {
-  (globalThis as any).process.env = {};
-}
-(globalThis as any).process.env.TRANSFORMERS_CACHE = "/";
-(globalThis as any).process.env.XENOVA_CACHE       = "/";
-if (typeof (globalThis as any).process.cwd !== "function") {
-  (globalThis as any).process.cwd = () => "/";
-}
-// Force lib to think it's in a browser, not Node, to avoid "path" module crashes
-if (!(globalThis as any).process.release) {
-  (globalThis as any).process.release = { name: "browser" };
-} else {
-  (globalThis as any).process.release.name = "browser";
-}
-
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let verseRefs:    string[]     | null = null;
 let verseVectors: Float32Array | null = null;
 let dims = 384;
+let semanticApp: App | undefined;
+let semanticDir = "";
+let vectorsTask: Promise<void> | null = null;
+export function configureSemanticSearch(app: App, dir: string): void {
+  semanticApp = app;
+  semanticDir = dir;
+}
+
 
 // Runtime embedding pipeline — one function that wraps whichever backend loads
 let embeddingPipeline: ((text: string) => Promise<Float32Array>) | null = null;
@@ -261,30 +246,13 @@ async function trySmartConnectionsPipeline(app: App): Promise<boolean> {
 
 async function tryXenovaPipeline(): Promise<boolean> {
   try {
-    const mod = await import("@xenova/transformers");
-    const { pipeline: createPipeline, env } = (mod as any).default ?? mod;
-
-    if (!env) throw new Error("transformers env missing — module loaded incorrectly");
-
-    // Safely set WASM paths and disable proxies (important for Obsidian)
-    // We use a safe-access pattern to avoid "Cannot read properties of undefined"
-    const backends = (env as any).backends;
-    if (backends?.onnx) {
-        backends.onnx.logLevel = "error";
-        if (backends.onnx.wasm) {
-            backends.onnx.wasm.proxy = false;
-            backends.onnx.wasm.numThreads = 1;
-            const CDN_BASE = "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.0/dist/";
-            backends.onnx.wasm.wasmPaths = CDN_BASE;
-        }
-    }
-
-    // Pre-warm the cache by attempting to load the pipeline
-    const pipe = await createPipeline(
-      "feature-extraction",
-      "Xenova/all-MiniLM-L6-v2",
-      { quantized: true }
-    );
+    if (!semanticApp || !semanticDir) return false;
+    // This is our own locally installed, compiled plugin code. Loading it the
+    // same way as Obsidian loads main.js also works with mobile vault adapters.
+    const code = await semanticApp.vault.adapter.read(`${semanticDir}/semantic-runtime.js`);
+    const runtimeModule = {exports: {} as any};
+    new Function("require", "module", "exports", code)(require, runtimeModule, runtimeModule.exports);
+    const pipe = await runtimeModule.exports.createEmbeddingPipeline();
 
     // Confirm the model actually works before committing
     const testOut = await pipe("test", { pooling: "mean", normalize: true });
@@ -422,13 +390,14 @@ async function tfidfSearch(query: string, topK: number): Promise<SemanticResult[
 export async function semanticVerseSearch(
   query: string,
   topK  = 10,
-  app?:  App,
+  app?: App,
+  explicit = false,
 ): Promise<SemanticResult[]> {
   // Ensure we've tried to load a pipeline (allows lazy-loading SC bridge)
-  if (app) await loadEmbeddingPipeline(app);
-  // Lazy pipeline init on first search call
-  if (!pipelineLoadAttempted) {
-    await loadEmbeddingPipeline(app);
+  const context = app ?? semanticApp;
+  if ((explicit || app) && context) {
+    await loadEmbeddingPipeline(context);
+    if (embeddingPipeline && semanticDir) await (vectorsTask ??= loadVerseVectors(context, semanticDir));
   }
 
   // Tier 1 + 2: vector cosine (requires pre-shipped vectors + working pipeline)

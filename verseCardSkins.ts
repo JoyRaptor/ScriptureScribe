@@ -19,7 +19,7 @@ const STARTER_SKINS: Record<string, string> = {
 // Bump when a starter skin changes. Files carrying an older "ss-starter vN"
 // marker (or the unmarked first release of Velvet Rainbow) are refreshed;
 // a skin whose marker line was deleted belongs to the user and is never touched.
-const STARTER_VERSION = 2;
+const STARTER_VERSION = 5;
 const LEGACY_V1_MARKER = "matches the Royal Velvet Obsidian theme</title>";
 
 async function writeStarter(adapter: DataAdapter, path: string, html: string): Promise<void> {

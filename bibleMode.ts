@@ -1,3 +1,5 @@
+import { fetchInterlinear } from "./interlinear";
+import { renderPassage } from "./textFormatting";
 /**
  * bibleMode.ts  — Phase 5a (rev 2)
  *
@@ -16,7 +18,7 @@
 
 import { App, MarkdownView } from "obsidian";
 import { BIBLE_BOOKS, BookMeta } from "./bibleData";
-import { getKJVData } from "./fetcher";
+import { getKJVData, getFormattedKJV } from "./fetcher";
 import { ScriptureScribeSettings } from "./settings";
 import { getIcon } from "./iconRegistry";
 import {
@@ -44,7 +46,8 @@ import {
 // ── Colour palette — now instance-derived from bookColorUtils ───────────────
 
 // ── OT / NT split ─────────────────────────────────────────────────────────────
-const OT_BOOKS = [...BIBLE_BOOKS.slice(0, 39), ...BIBLE_BOOKS.slice(66)];
+const OT_BOOKS = BIBLE_BOOKS.slice(0, 39);
+const APOCRYPHAL_BOOKS = BIBLE_BOOKS.slice(66);
 const NT_BOOKS = BIBLE_BOOKS.slice(39, 66);
 
 // BOOK_GENRE_COLOR moved to bookColorUtils.ts
@@ -139,6 +142,7 @@ export class BibleModeView {
     this.settings = settings;
     this.updatePalette();
     this.build();
+    document.addEventListener("selectionchange", this.onNativeSelection);
   }
 
   // ── Palette management ────────────────────────────────────────────────────
@@ -245,10 +249,32 @@ export class BibleModeView {
     else this.openNav("book");
   }
 
+  private selectionCleanup: (() => void) | null = null;
+  private selectionTarget: HTMLElement | null = null;
+  private onNativeSelection = (): void => {
+    if (!this.root.isConnected || !this.root.getClientRects().length) return;
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.anchorNode || !selection.focusNode) return;
+    const element = selection.anchorNode.nodeType === Node.ELEMENT_NODE
+      ? selection.anchorNode as Element : selection.anchorNode.parentElement;
+    const span = element?.closest<HTMLElement>("[data-verse-key]");
+    if (!span || !this.root.contains(span) || !span.contains(selection.focusNode) || this.selectionTarget === span) return;
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    this.startWordSelection(span, span.dataset.verseKey!, rect.left, rect.top);
+  };
+
   destroy(): void {
+    document.removeEventListener("selectionchange", this.onNativeSelection);
+    this.clearTextSelection();
     this.closeBacklinkDrawer();
     this.dismissVerseActions();
     this.root.empty();
+  }
+
+  clearTextSelection(): void {
+    this.selectionCleanup?.();
+    const selection = window.getSelection();
+    if (selection?.anchorNode && this.root.contains(selection.anchorNode)) selection.removeAllRanges();
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -377,7 +403,8 @@ export class BibleModeView {
         const active = this.pos.bookId === book.id;
         const gc = BOOK_GENRE_COLOR[book.id] ?? this.P;
         btn.style.cssText = `
-          padding:6px 4px; font-size:11px; font-weight:700;
+          height:clamp(20px,2.8vh,30px); min-height:0;
+          padding:2px 4px; font-size:11px; font-weight:700; line-height:1.1;
           background:${active ? gc : "transparent"};
           color:${active ? "#1a1a2e" : gc};
           border:1.5px solid ${gc};
@@ -427,6 +454,9 @@ export class BibleModeView {
     sep.style.cssText = `height:1px; background:var(--background-modifier-border); margin:6px 0; opacity:.4;`;
 
     renderGroup(NT_BOOKS, "New Testament");
+    const apocryphalSep = inner.createEl("div");
+    apocryphalSep.style.cssText = sep.style.cssText;
+    renderGroup(APOCRYPHAL_BOOKS, "Apocryphal");
   }
 
   // ── Chapter grid ──────────────────────────────────────────────────────────
@@ -1010,7 +1040,8 @@ export class BibleModeView {
       this.wireLongPress(sup, verseKey);
 
       const span = textWrap.createEl("span");
-      span.textContent = text + " ";
+      renderPassage(span, (this.settings.primaryTranslation === "KJV" ? getFormattedKJV(verseKey) : undefined) ?? text);
+      span.appendChild(document.createTextNode(" "));
       span.dataset.verseKey = verseKey;
       span.style.cssText = `padding:2px 4px; margin:0 -2px; border-radius:6px; cursor:pointer; transition:background 0.15s, opacity 0.2s, color 0.8s ease, box-shadow 0.4s ease;`;
 
@@ -1123,7 +1154,7 @@ export class BibleModeView {
         if (window.getSelection()?.toString().length) return;
         didLong = true;
         longTimer = null;
-        this.startWordSelection(span, verseKey);
+        this.startWordSelection(span, verseKey, tapX, tapY);
       }, 600);
     };
 
@@ -1372,157 +1403,64 @@ export class BibleModeView {
 
   // ── Word selection (long press) ──────────────────────────────────────────
 
-  private startWordSelection(span: HTMLElement, verseKey: string): void {
-    // Inject keyframes once
-    if (!document.getElementById("ss-wsel-kf")) {
-      const s = document.createElement("style");
-      s.id = "ss-wsel-kf";
-      s.textContent = `
-        @keyframes ss-wsel-in  { from{opacity:0;transform:scale(0.5)} to{opacity:1;transform:scale(1)} }
-        .ss-wsel-word { cursor:pointer; border-radius:2px; transition:background 0.1s; }
-        .ss-wsel-word.selected { background:${this.P}44; }
-      `;
-      document.head.appendChild(s);
+  private startWordSelection(span: HTMLElement, verseKey: string, x: number, y: number): void {
+    this.selectionCleanup?.();
+    const selection = window.getSelection();
+    const nativeSelection = selection && !selection.isCollapsed && selection.anchorNode && selection.focusNode
+      && span.contains(selection.anchorNode) && span.contains(selection.focusNode);
+    const caret = (document as any).caretRangeFromPoint?.(x, y) as Range | undefined;
+    if (!nativeSelection && caret && span.contains(caret.startContainer) && caret.startContainer.nodeType === Node.TEXT_NODE) {
+      const text = caret.startContainer.textContent ?? "";
+      let start = caret.startOffset, end = caret.startOffset;
+      while (start > 0 && /[\p{L}\p{N}'’]/u.test(text[start - 1])) start--;
+      while (end < text.length && /[\p{L}\p{N}'’]/u.test(text[end])) end++;
+      caret.setStart(caret.startContainer, start); caret.setEnd(caret.startContainer, end);
+      selection?.removeAllRanges(); selection?.addRange(caret);
     }
-
-    const fullText = (span.textContent ?? "").trimEnd();
-    const words = fullText.split(/(\s+)/); // preserve spaces
-    span.empty();
-
-    let selStart = -1;
-    let selEnd = -1;
-    const wordEls: HTMLElement[] = [];
-
-    // Rebuild verse as individually-tappable word spans
-    words.forEach((token, i) => {
-      if (/^\s+$/.test(token)) {
-        span.appendText(token);
-        return;
-      }
-      const w = document.createElement("span");
-      w.className = "ss-wsel-word";
-      w.textContent = token;
-      const wordIdx = wordEls.length;
-      wordEls.push(w);
-
-      w.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (selStart === -1) {
-          selStart = selEnd = wordIdx;
-        } else if (wordIdx < selStart) {
-          selStart = wordIdx;
-        } else {
-          selEnd = wordIdx;
-        }
-        wordEls.forEach((el, j) => {
-          el.classList.toggle("selected", j >= selStart && j <= selEnd);
-        });
-        updateSelectionMenu();
-      });
-      span.appendChild(w);
+    span.style.userSelect = "text";
+    const menu = document.createElement("div");
+    menu.className = "ss-selection-actions";
+    menu.style.cssText = "position:fixed;z-index:10001;display:flex;gap:6px;padding:6px;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:8px;";
+    menu.addEventListener("pointerdown", event => event.preventDefault());
+    const selectedText = () => {
+      const current = window.getSelection();
+      return current?.anchorNode && current.focusNode && span.contains(current.anchorNode) && span.contains(current.focusNode) ? current.toString().trim() : "";
+    };
+    const cleanup = () => { menu.remove(); document.removeEventListener("selectionchange", update); this.selectionCleanup = null; this.selectionTarget = null; };
+    const button = (label: string, action: () => void) => {
+      const el = document.createElement("button"); el.textContent = label; el.title = label;
+      el.addEventListener("click", event => { event.stopPropagation(); action(); }); menu.appendChild(el);
+    };
+    button("Search English", () => {
+      const text = selectedText(); if (text) this.onOpenResearch?.(`search:${text}`, false); cleanup();
     });
-
-    // Selection action menu
-    const menuEl = document.createElement("div");
-    menuEl.style.cssText = `
-      display:none; position:absolute; left:0; bottom:calc(100% + 6px);
-      background:var(--background-primary);
-      border:1px solid var(--background-modifier-border);
-      border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.18);
-      padding:6px; gap:6px; z-index:30;
-      animation:ss-wsel-in 0.18s cubic-bezier(0.34,1.3,0.64,1);
-    `;
-    menuEl.style.display = "none";
-    span.style.position = "relative";
-    span.appendChild(menuEl);
-
-    const menuBtn = (label: string, icon: string, fn: () => void) => {
-      const b = document.createElement("button");
-      b.title = label;
-      b.style.cssText = `
-        width:40px; height:40px; border-radius:8px; border:none;
-        background:var(--background-secondary); color:${this.P};
-        display:flex; align-items:center; justify-content:center;
-        cursor:pointer; transition:background 0.1s;
-      `;
-      b.innerHTML = icon;
-      b.addEventListener("mouseenter", () => b.style.background = this.PL);
-      b.addEventListener("mouseleave", () => b.style.background = "var(--background-secondary)");
-      b.addEventListener("click", (e) => { e.stopPropagation(); fn(); });
-      menuEl.appendChild(b);
+    button("א Search original", () => {
+      const text = selectedText();
+      const ref = parseScriptureRefs(verseKey)[0];
+      if (!text || !ref) return;
+      void fetchInterlinear(ref, "both", this.settings.primaryTranslation).then(words => {
+        const clean = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+        const target = clean(text);
+        const word = words.find(word => clean(word.english) === target) ??
+          words.find(word => word.english.split(/\s+/).some(part => clean(part) === target));
+        if (word?.strongsNum || word?.original) this.onOpenResearch?.(`search:${word.strongsNum || word.original}`, true);
+        else this.onOpenResearch?.(verseKey, true, text);
+        cleanup();
+      });
+    });
+    button("Done", () => this.clearTextSelection());
+    const update = () => {
+      if (!selectedText()) { menu.style.display = "none"; return; }
+      menu.style.display = "flex";
+      const rect = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
+      menu.style.top = `${Math.max(4, rect.top - 48)}px`;
+      menu.style.left = `${Math.max(4, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 4))}px`;
     };
-
-    const getSelectedText = () =>
-      selStart >= 0 && selEnd >= selStart
-        ? wordEls.slice(selStart, selEnd + 1).map(el => el.textContent).join(" ")
-        : "";
-
-    const SEARCH_ICON = getIcon("Search-vault", 20);
-    const ALEPH_ICON = getIcon("Search-word", 20);
-    const TEXT_ICON = getIcon("embed-text-white-qwill", 20);
-    const ADDR_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
-    const CLOSE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-
-    const updateSelectionMenu = () => {
-      menuEl.innerHTML = '';
-      if (selStart < 0) {
-        menuEl.style.display = "none";
-        return;
-      }
-      menuEl.style.display = "flex";
-
-      const single = selStart === selEnd;
-
-      if (single) {
-        menuBtn("Search English", SEARCH_ICON, () => {
-          const t = getSelectedText();
-          if (t && this.onOpenResearch) this.onOpenResearch(`search:${t}`, false);
-          exitSelection();
-        });
-        menuBtn("Define (Interlinear)", ALEPH_ICON, () => {
-          const t = getSelectedText();
-          if (t && this.onOpenResearch) {
-            // Route to research mode with interlinear open AND pre-search the word.
-            // We pass withInterlinear=true so the panel stays in interlinear mode,
-            // then trigger an English-gloss search so the matching card is highlighted.
-            this.onOpenResearch(`search:${t}:original`, true);
-          }
-          exitSelection();
-        });
-      } else {
-        menuBtn("Embed Text", TEXT_ICON, () => {
-          const t = getSelectedText();
-          if (t) {
-            this.insertRefIntoNote(`${t} — ${verseKey}`);
-          }
-          exitSelection();
-        });
-        menuBtn("Write Address", ADDR_ICON, () => {
-          this.insertRefIntoNote(verseKey);
-          exitSelection();
-        });
-        menuBtn("Interlinear", ALEPH_ICON, () => {
-          if (this.onOpenResearch) this.onOpenResearch(verseKey, true);
-          exitSelection();
-        });
-      }
-
-      menuBtn("Done", CLOSE_ICON, exitSelection);
-    };
-
-    function exitSelection() {
-      // Restore original span text content
-      span.empty();
-      span.textContent = fullText + " ";
-      span.style.position = "";
-      menuEl.remove();
-    }
-
-    // Auto-exit selection after 15 s
-    setTimeout(exitSelection, 15000);
+    document.body.appendChild(menu); document.addEventListener("selectionchange", update);
+    this.selectionCleanup = cleanup;
+    this.selectionTarget = span;
+    update();
   }
-
-  // ── Long press on verse number (existing: insert ref) ────────────────────
 
   private wireLongPress(el: HTMLElement, verseKey: string): void {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -2241,14 +2179,19 @@ export class BibleModeView {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   private getBook(id: number): BookMeta | undefined {
-    return BIBLE_BOOKS.find(b => b.id === id);
+    const book = BIBLE_BOOKS.find(b => b.id === id);
+    return book?.name === "Psalms" && this.settings.primaryTranslation === "LXX"
+      ? {...book, chapters: 151} : book;
   }
 
   /** Extracts the word under the tap coordinates, ignoring punctuation */
   private getWordAtTap(x: number, y: number): string {
     let pos: any;
     if ((document as any).caretPositionFromPoint) pos = (document as any).caretPositionFromPoint(x, y);
-    else if ((document as any).caretRangeFromPoint) pos = (document as any).caretRangeFromPoint(x, y);
+    else if ((document as any).caretRangeFromPoint) {
+      const range = (document as any).caretRangeFromPoint(x, y);
+      if (range) pos = {offsetNode: range.startContainer, offset: range.startOffset};
+    }
 
     if (!pos?.offsetNode || pos.offsetNode.nodeType !== Node.TEXT_NODE) return "";
     const txt = pos.offsetNode.textContent || "";

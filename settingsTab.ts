@@ -356,7 +356,7 @@ export class ScriptureScribeSettingTab extends PluginSettingTab {
     const vsCard = UIFactory.createCard(this.contentPane, "Vault Scan Engine", getIcon("Search-vault", 36));
     UIFactory.buildToggle(vsCard, "Use Global Exclusions", "Skip standard excluded folders when scanning notes.", this.plugin.settings.vaultScan.useGlobalExclusions, async (val) => { this.plugin.settings.vaultScan.useGlobalExclusions = val; await this.plugin.saveSettings(); });
     UIFactory.buildTextArea(vsCard, "Additional Scan Exclusions", "Extra folders to skip only during vault note scan (one path per line).", this.plugin.settings.vaultScan.additionalExclusions.join("\n"), 3, async (val) => { this.plugin.settings.vaultScan.additionalExclusions = val.split("\n").map(s => s.trim()).filter(Boolean); await this.plugin.saveSettings(); });
-    UIFactory.buildButton(vsCard, "Force Re-scan", "Force a fresh scan of all notes immediately.", "Scan Vault Now", () => this.plugin.startVaultScan(), true);
+    UIFactory.buildButton(vsCard, "Force Re-scan", "Force a fresh scan of all notes immediately.", "Scan Vault Now", () => this.plugin.startVaultScan(true), true);
 
     // Tools & Cache Card
     const cacheCard = UIFactory.createCard(this.contentPane, "Cache & Tools", getIcon("shepards-hook", 36));

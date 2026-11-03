@@ -1,10 +1,24 @@
 import { ScriptureRef } from './parser';
+import { ensureData } from "./dataLoader";
 
+const rangeMappings: Array<{book: string; chapter: number; first: number; last: number; toBook: string; toChapter: number; toVerse: number}> = [];
 let mappingData: Record<string, any> | null = null;
 
 /** Called once from main.ts after the file is read from the plugin folder. */
 export function setVersificationData(data: Record<string, any>): void {
   mappingData = data;
+  rangeMappings.length = 0;
+  // Range declarations carry the actual coordinate change. Individual Nec./Acd.
+  // annotations describe textual differences and must not override that change.
+  for (const [key, value] of Object.entries(data.eng2grk ?? {}) as Array<[string, string]>) {
+    const a = key.match(/^([A-Za-z0-9]+)\.(\d+):(\d+)-(\d+)$/);
+    const b = value.match(/^([A-Za-z0-9]+)\.(\d+):(\d+)-(\d+)$/);
+    if (a && b) rangeMappings.push({book: a[1], chapter: +a[2], first: +a[3], last: +a[4], toBook: b[1], toChapter: +b[2], toVerse: +b[3]});
+  }
+}
+
+export function ensureVersificationData(): Promise<void> {
+  return ensureData("versification-mapping.json", setVersificationData);
 }
 
 // Simple mapping for book names to abbreviations used in the JSON
@@ -36,28 +50,32 @@ export function mapToSwete(ref: ScriptureRef): ScriptureRef {
   if (!table) return ref;
 
   const key = `${abbr}.${ref.chapter}:${ref.verseStart}`;
+  const range = rangeMappings.find(r => r.book === abbr && r.chapter === ref.chapter && r.first <= ref.verseStart && r.last >= ref.verseStart)
+    ?? (ref.book === "Psalms" ? rangeMappings.find(r => r.book === abbr && r.chapter === ref.chapter && r.first <= 3 && ref.verseStart < r.first) : undefined);
+  if (range) return {...ref, book: ABBR_TO_BOOK[range.toBook] ?? ref.book,
+    chapter: range.toChapter, verseStart: range.toVerse + ref.verseStart - range.first};
   const mapped = table[key];
-  
-  if (!mapped || mapped.includes("NotExist") || mapped.includes("Absent")) {
-    return ref;
+  const direct = typeof mapped === "string" ? mapped.match(/^([A-Za-z0-9]+)\.(\d+):(\d+)$/) : null;
+  if (direct) return {...ref, book: ABBR_TO_BOOK[direct[1]] ?? ref.book, chapter: +direct[2], verseStart: +direct[3]};
+  // Normal Psalm numbering between the explicitly split/merged ranges.
+  if (ref.book === "Psalms") {
+    const c = ref.chapter;
+    if (c >= 11 && c <= 113 || c >= 117 && c <= 146) return {...ref, chapter: c - 1};
   }
-
-  // Parse "Gen.2:25" or "Acd. [3:1a]" or "Nec. [31b]"
-  // The mapping data is a bit complex. For simplicity, we try to extract chapter and verse.
-  // Example "Gen.2:25" -> book=Gen, chapter=2, verse=25
-  const match = mapped.match(/^([A-Z][a-z]{2})\.(\d+):(\d+)/);
-  if (match) {
-    const origRange = ref.verseEnd ? ref.verseEnd - ref.verseStart : 0;
-    return {
-      ...ref,
-      book: ABBR_TO_BOOK[match[1]] || ref.book,
-      chapter: parseInt(match[2], 10),
-      verseStart: parseInt(match[3], 10),
-      verseEnd: origRange > 0 ? parseInt(match[3], 10) + origRange : undefined
-    };
-  }
+  // Shipped Swete Joel/Malachi use the English chapter divisions.
+  // Hebrew native chapter labels are handled separately by mapToHebrew.
 
   // If it's a relative mapping like "Acd. [3:1a]", we might need more logic.
   // For now, if it doesn't match the simple pattern, return original to avoid breaks.
+  return ref;
+}
+
+/** Native Hebrew coordinate changes relative to the English chapter numbers. */
+export function mapToHebrew(ref: ScriptureRef): ScriptureRef {
+  if (ref.book === "Joel") {
+    if (ref.chapter === 2 && ref.verseStart >= 28) return {...ref, chapter: 3, verseStart: ref.verseStart - 27};
+    if (ref.chapter === 3) return {...ref, chapter: 4};
+  }
+  if (ref.book === "Malachi" && ref.chapter === 4) return {...ref, chapter: 3, verseStart: ref.verseStart + 18};
   return ref;
 }

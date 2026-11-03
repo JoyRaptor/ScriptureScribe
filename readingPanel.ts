@@ -1,11 +1,14 @@
+import { expandRef } from "./parser";
+import { mapToHebrew } from "./versification";
+import { renderPassage } from "./textFormatting";
 import { ItemView, WorkspaceLeaf, Editor, App, MarkdownView, Notice } from "obsidian";
 import { ScriptureRef, refToString, parseScriptureRefs } from "./parser";
-import { getScripture, getKJVData } from "./fetcher";
+import { ensureKJVData, getScripture, getKJVData } from "./fetcher";
 import { fetchInterlinear, fetchStrongsDefinition, InterlinearWord, getGreekData, getHebrewData, getLXXData, OT_BOOKS } from "./interlinear";
 import { ScriptureScribeSettings } from "./settings";
 import { buildSimpleDefinition, buildSimpleDom, buildAdvancedDefinition, makeSpeakerLink, makeGlobeLink, isDefAdvanced, toggleDefAdvanced, DefCallbacks, setDefPalette } from "./defHelpers";
-import { getCrossRefs, isCrossRefLoaded } from "./crossRefs";
-import { buildSearchIndex, search, isIndexBuilt, SearchResult, getKJVText, morphSearch, isMorphIndexBuilt } from "./searchIndex";
+import { ensureCrossRefData, getCrossRefs, isCrossRefLoaded } from "./crossRefs";
+import { ensureSearchIndex, buildSearchIndex, search, isIndexBuilt, SearchResult, getKJVText, morphSearch, isMorphIndexBuilt } from "./searchIndex";
 import { parseMorph } from "./morphParser";
 import { BibleModeView } from "./bibleMode";
 import { BIBLE_BOOKS } from "./bibleData";
@@ -186,7 +189,16 @@ export class ScriptureReadingPanel extends ItemView {
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
+  private pendingRef: {ref: ScriptureRef; editor: Editor | null} | null = null;
+  private closed = false;
+  get isOpen(): boolean { return !this.closed; }
+  private resolveReady: (() => void) | null = null;
+  readonly ready = new Promise<void>(resolve => { this.resolveReady = resolve; });
+
   async onOpen(): Promise<void> {
+    this.closed = false;
+    await ensureKJVData();
+    await ensureCrossRefData();
     const root = this.contentEl;
     root.empty();
     root.style.cssText = `
@@ -207,9 +219,16 @@ export class ScriptureReadingPanel extends ItemView {
     // Bible mode container — hidden until activated
     this.bibleModeEl = root.createEl("div");
     this.bibleModeEl.style.cssText = "display:none; flex:1; overflow:hidden; min-height:0;";
+    this.resolveReady?.();
+    const pending = this.pendingRef; this.pendingRef = null;
+    if (pending) void this.setRef(pending.ref, pending.editor);
   }
 
   async onClose(): Promise<void> {
+    this.closed = true;
+    this.loadingSeq++;
+    this.pendingRef = null;
+    this.bibleModeView?.destroy();
     if (this.searchPopover) {
       this.searchPopover.remove();
       this.searchPopover = null;
@@ -288,8 +307,7 @@ export class ScriptureReadingPanel extends ItemView {
     try {
       // Guard: DOM may not be ready if setRef is called before onOpen completes
       if (!this.refLbl || !this.contentWrapEl) {
-        console.warn("ScriptureScribe panel: setRef called before DOM ready, retrying in 100ms");
-        setTimeout(() => this.setRef(ref, editor), 100);
+        this.pendingRef = {ref, editor};
         return;
       }
 
@@ -299,7 +317,7 @@ export class ScriptureReadingPanel extends ItemView {
         const { BIBLE_BOOKS } = await import("./bibleData");
         const book = BIBLE_BOOKS.find(b => b.name === ref.book);
         if (book) {
-          const verseKey = `${ref.book} ${ref.chapter}:${ref.verseStart}`;
+          const verseKey = ref.chapterOnly ? undefined : `${ref.book} ${ref.chapter}:${ref.verseStart}`;
           this.bibleModeView.goTo(book.id, ref.chapter, verseKey);
         }
         return;
@@ -327,6 +345,7 @@ export class ScriptureReadingPanel extends ItemView {
       console.debug(`ScriptureScribe panel: setRef called for "${refToString(ref)}"`);
 
       this.refLbl.textContent = refToString(ref);
+      if (this.intLbl) this.intLbl.title = `Hebrew address: ${refToString(mapToHebrew(ref))}`;
       this.refLbl.style.color = this.P;
 
       // Switch empty → content
@@ -362,7 +381,7 @@ export class ScriptureReadingPanel extends ItemView {
 
       // Verse text
       this.verseTextEl.style.color = "var(--text-normal)";
-      this.renderVerseText(this.verseTextEl, verse.text);
+      this.renderVerseText(this.verseTextEl, verse.formattedText ?? verse.text);
       this.verLabel.textContent = verse.version;
 
       // Footer
@@ -797,8 +816,8 @@ export class ScriptureReadingPanel extends ItemView {
     this.morphPanelEl.appendChild(searchBtnWrap);
   }
 
-  private runMorphSearch(): void {
-    if (!isIndexBuilt()) buildSearchIndex(getGreekData(), getHebrewData(), getLXXData());
+  private async runMorphSearch(): Promise<void> {
+    await ensureSearchIndex();
 
     let strongsNum = this.morphStrongsInput.value.trim().toUpperCase().replace(/^([GH])0+/, "$1");
     let morphPat: string;
@@ -895,7 +914,7 @@ export class ScriptureReadingPanel extends ItemView {
     // half-populated index and silently return partial results. search()
     // already falls through to semantic search internally when results are
     // sparse — no second semantic pass needed here.
-    if (!isIndexBuilt()) await buildSearchIndex(getGreekData(), getHebrewData(), getLXXData());
+    await ensureSearchIndex();
     const { results, mode } = await search(raw);
 
     (this as any)._stopSearchAnim?.();
@@ -1513,16 +1532,12 @@ export class ScriptureReadingPanel extends ItemView {
     this.refLbl.title = "Open in Bible reader";
     this.refLbl.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (!this.currentRef) return;
+      const ref = this.currentRef;
+      if (!ref) return;
       if (!this.bibleMode) this.enterBibleMode();
-      if (this.currentRef) {
-        import("./bibleData").then(({ BIBLE_BOOKS }) => {
-          const book = BIBLE_BOOKS.find(b => b.name === this.currentRef!.book);
-          if (book && this.bibleModeView) {
-            const verseKey = `${this.currentRef!.book} ${this.currentRef!.chapter}:${this.currentRef!.verseStart}`;
-            this.bibleModeView.goTo(book.id, this.currentRef!.chapter, verseKey);
-          }
-        });
+      const book = BIBLE_BOOKS.find(b => b.name === ref.book);
+      if (book && this.bibleModeView) {
+        this.bibleModeView.goTo(book.id, ref.chapter, ref.chapterOnly ? undefined : `${ref.book} ${ref.chapter}:${ref.verseStart}`);
       }
     });
 
@@ -1709,7 +1724,7 @@ export class ScriptureReadingPanel extends ItemView {
       const { BIBLE_BOOKS } = await import("./bibleData");
       const book = BIBLE_BOOKS.find(b => b.name === ref.book);
       if (book) {
-        const verseKey = `${ref.book} ${ref.chapter}:${ref.verseStart}`;
+        const verseKey = ref.chapterOnly ? undefined : `${ref.book} ${ref.chapter}:${ref.verseStart}`;
         this.bibleModeView.goTo(book.id, ref.chapter, verseKey);
       }
       return;
@@ -1745,7 +1760,7 @@ export class ScriptureReadingPanel extends ItemView {
     if (seq !== this.loadingSeq) return;
 
     this.verseTextEl.style.color = "var(--text-normal)";
-    this.renderVerseText(this.verseTextEl, verse.text);
+    this.renderVerseText(this.verseTextEl, verse.formattedText ?? verse.text);
     this.verLabel.textContent = verse.version;
 
     const srcEl = this.contentEl.querySelector<HTMLElement>(".ss-panel-src")!;
@@ -1914,6 +1929,7 @@ export class ScriptureReadingPanel extends ItemView {
   }
 
   private exitBibleMode(): void {
+    this.bibleModeView?.clearTextSelection();
     this.bibleMode = false;
 
     // Swap icon → research-bible, muted
@@ -1996,7 +2012,7 @@ export class ScriptureReadingPanel extends ItemView {
           if (verseText) {
             const { getScripture } = await import("./fetcher");
             const verse = await getScripture(this.currentRef, this.settings);
-            this.renderVerseText(verseText, verse.text);
+            this.renderVerseText(verseText, verse.formattedText ?? verse.text);
             if (this.verLabel) this.verLabel.textContent = verse.version;
             if (srcEl) srcEl.textContent = verse.source === "local" ? "Local KJV"
               : verse.source === "cache" ? `Cache · ${verse.version}`
@@ -2772,8 +2788,8 @@ export class ScriptureReadingPanel extends ItemView {
     // If vault scan hasn't finished yet, we'll be called again via onVaultIndexReady
     if (!isVaultIndexReady()) return;
 
-    const verseKey = `${ref.book} ${ref.chapter}:${ref.verseStart}`;
-    const notes = getNotesForVerse(verseKey);
+    const notes = [...new Map(expandRef(ref).flatMap(({chapter, verse}) =>
+      getNotesForVerse(`${ref.book} ${chapter}:${verse}`)).map(note => [note.filePath, note] as const)).values()];
     if (!notes.length) return;
 
     this.backlinkEl.style.display = "block";
@@ -3126,18 +3142,7 @@ export class ScriptureReadingPanel extends ItemView {
   // ── Verse text ────────────────────────────────────────────────────────────
 
   private renderVerseText(container: HTMLElement, text: string): void {
-    container.empty();
-    const VERSE_NUM_RE = /\[(\d+)\]/g;
-    let last = 0, m: RegExpExecArray | null;
-    VERSE_NUM_RE.lastIndex = 0;
-    while ((m = VERSE_NUM_RE.exec(text)) !== null) {
-      if (m.index > last) container.appendText(text.slice(last, m.index));
-      const sup = container.createEl("sup");
-      sup.textContent = m[1];
-      sup.style.cssText = `font-size:9px;color:${this.P};font-weight:700;margin-right:2px;opacity:.75;`;
-      last = m.index + m[0].length;
-    }
-    if (last < text.length) container.appendText(text.slice(last));
+    renderPassage(container, text);
   }
 
   // ── Swipe helpers ─────────────────────────────────────────────────────────

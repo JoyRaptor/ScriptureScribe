@@ -102,7 +102,37 @@ export function getKJVText(verseKey: string): string {
 
 // ── Index builder ─────────────────────────────────────────────────────────────
 
-export async function buildSearchIndex(
+let indexBuild: Promise<void> | null = null;
+let indexReady = false;
+export interface SearchStores {
+  greek: Record<string, WordEntry[]>;
+  hebrew: Record<string, WordEntry[]>;
+  lxx: Record<string, WordEntry[]>;
+}
+let searchLoad: Promise<SearchStores> | null = null;
+let loadSearchData: (() => Promise<SearchStores>) | null = null;
+export function configureSearchLoader(loader: () => Promise<SearchStores>): void { loadSearchData = loader; searchLoad = null; }
+export async function ensureSearchIndex(): Promise<void> {
+  if (indexReady) return;
+  if (loadSearchData) {
+    const stores = await (searchLoad ??= loadSearchData().catch(error => { searchLoad = null; throw error; }));
+    await buildSearchIndex(stores.greek, stores.hebrew, stores.lxx);
+  } else await buildSearchIndex(getGreekData(), getHebrewData(), getLXXData());
+}
+
+export function buildSearchIndex(
+  greek: Record<string, Array<WordEntry>>,
+  hebrew: Record<string, Array<WordEntry>>,
+  lxx: Record<string, Array<WordEntry>>,
+): Promise<void> {
+  return indexBuild ??= buildIndex(greek, hebrew, lxx).catch(error => {
+    indexBuild = null;
+    strongsIndex = null;
+    morphIndex = null;
+    throw error;
+  });
+}
+async function buildIndex(
   greek:  Record<string, Array<WordEntry>>,
   hebrew: Record<string, Array<WordEntry>>,
   lxx:    Record<string, Array<WordEntry>>,
@@ -163,6 +193,7 @@ export async function buildSearchIndex(
   await addStore(hebrew);
   await addStore(lxx);
 
+  indexReady = true;
   console.log(
     `ScriptureScribe: search index built — ${strongsIndex.size} Strong's entries,` +
     ` ${morphIndex.size} morph patterns`
@@ -173,7 +204,7 @@ export async function buildSearchIndex(
 }
 
 export function isIndexBuilt(): boolean {
-  return strongsIndex !== null;
+  return indexReady;
 }
 
 // ── Query classification ──────────────────────────────────────────────────────
@@ -182,8 +213,8 @@ import { semanticVerseSearch } from "./semanticSearch";
 
 export function classifyQuery(raw: string): SearchMode {
   const trimmed = raw.trim();
-  if (trimmed.startsWith("semantic:")) return "semantic";
-  if (trimmed.startsWith("morph:"))    return "morph";
+  if (trimmed.toLowerCase().startsWith("semantic:")) return "semantic";
+  if (trimmed.toLowerCase().startsWith("morph:"))    return "morph";
   if (/^[GgHh]\d+$/.test(trimmed)) return "strongs";
   if (/[^\x00-\x7F]/.test(trimmed)) return "original";
   // Boolean: contains AND / OR / + / | operators
@@ -207,10 +238,10 @@ export function classifyQuery(raw: string): SearchMode {
  *   English    — single/double word gloss search with stemming fallback
  */
 /** Standard 66 books in order to determine OT/NT split */
-import { BIBLE_BOOKS_NAMES, OT_BOOKS, NT_BOOKS } from "./interlinear";
+import { getGreekData, getHebrewData, getLXXData, BIBLE_BOOKS_NAMES, OT_BOOKS, NT_BOOKS } from "./interlinear";
 
 export async function search(raw: string, limit = 200): Promise<{ results: SearchResult[]; mode: SearchMode }> {
-  if (!strongsIndex) return { results: [], mode: "english" };
+  await ensureSearchIndex();
 
   let query = raw.trim();
 
@@ -262,7 +293,7 @@ export async function search(raw: string, limit = 200): Promise<{ results: Searc
       return { results, mode };  // no semantic fallback for morph queries
     }
     case "semantic":
-      const sem = await semanticVerseSearch(query, limit);
+      const sem = await semanticVerseSearch(query, limit, undefined, true);
       return {
         results: sem.map(s => ({
           reference: s.ref,
@@ -421,7 +452,7 @@ export function morphSearch(
 }
 
 /** Returns true if the morph index has been built */
-export function isMorphIndexBuilt(): boolean { return morphIndex !== null; }
+export function isMorphIndexBuilt(): boolean { return indexReady && morphIndex !== null; }
 
 // ── Original-language search ──────────────────────────────────────────────────
 
