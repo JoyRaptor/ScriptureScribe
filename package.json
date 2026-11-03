@@ -1,0 +1,36 @@
+{
+  "name": "scripture-scribe",
+  "version": "1.0.0",
+  "description": "Obsidian plugin for non-invasive scripture reference hovers and smart embedding",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "version": "node version-bump.mjs && git add manifest.json versions.json",
+    "generate-vectors": "ts-node scripts/generateVectors.ts",
+    "golden": "node scripts/golden-search.mjs --check",
+    "golden:update": "node scripts/golden-search.mjs --update",
+    "test": "node scripts/review-tests.mjs && node scripts/runtime-tests.mjs && node scripts/compact-search-tests.mjs && npm run golden"
+  },
+  "keywords": [
+    "obsidian",
+    "bible",
+    "scripture",
+    "plugin"
+  ],
+  "devDependencies": {
+    "ts-node": "^10.9.0",
+    "@types/node": "^16.11.6",
+    "@typescript-eslint/eslint-plugin": "5.29.0",
+    "@typescript-eslint/parser": "5.29.0",
+    "builtin-modules": "3.3.0",
+    "esbuild": "0.17.3",
+    "obsidian": "latest",
+    "tslib": "2.4.0",
+    "typescript": "4.7.4"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.17.0",
+    "onnxruntime-web": "^1.18.0"
+  }
+}

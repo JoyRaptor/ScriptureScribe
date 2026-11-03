@@ -1,0 +1,1 @@
+JSON.stringify({app:!!window.app,plugins:Object.keys(app.plugins.plugins),performance:performance.getEntriesByType('measure').map(e=>({name:e.name,duration:e.duration})),heap:performance.memory?.usedJSHeapSize,pluginKeys:Object.keys(app.plugins).filter(k=>/time|load/i.test(k))})

@@ -1,0 +1,1 @@
+(async()=>{const p=app.plugins.plugins['scripture-scribe'];const panel=p.getReadingPanel();const nav=panel.bibleModeView.navContainer;nav.firstElementChild.scrollTop=nav.firstElementChild.scrollHeight;await new Promise(r=>setTimeout(r,700));return {headings:nav.textContent.match(/Old Testament|New Testament|Apocryphal/g),scroll:nav.firstElementChild.scrollTop};})();

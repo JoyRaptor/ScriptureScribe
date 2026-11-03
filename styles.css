@@ -1,0 +1,109 @@
+/* ScriptureScribe — styles.css */
+
+.ss-ref-highlight {
+  border-bottom: 1.5px dotted var(--text-accent, #534AB7);
+  color: var(--text-accent, #534AB7);
+  cursor: help;
+  border-radius: 2px;
+  transition: background 0.12s ease;
+}
+.ss-ref-highlight:hover {
+  background: rgba(83,74,183,0.09);
+}
+
+.ss-strongs-highlight {
+  border-bottom: 1px dotted var(--text-muted);
+  cursor: help;
+  transition: color 0.12s ease;
+}
+.ss-strongs-highlight:hover {
+  color: var(--text-accent);
+}
+
+.ss-tooltip {
+  animation: ss-pop 0.13s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes ss-pop {
+  from { opacity:0; transform:scale(0.95) translateY(-4px); }
+  to   { opacity:1; transform:scale(1)    translateY(0);    }
+}
+
+/* Dark mode glass */
+.theme-dark .ss-tooltip {
+  background: rgba(28,28,35,0.88) !important;
+  border-color: rgba(255,255,255,0.1) !important;
+}
+.theme-dark .ss-bar {
+  background: rgba(38,38,48,0.8) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+/* Slim scrollbars inside tooltip */
+.ss-text::-webkit-scrollbar,
+.ss-grid::-webkit-scrollbar { width:3px; }
+.ss-text::-webkit-scrollbar-thumb,
+.ss-grid::-webkit-scrollbar-thumb {
+  background:var(--background-modifier-border);
+  border-radius:3px;
+}
+
+/* Dropdown row hover */
+.ss-eopt:hover,
+.ss-ver-dd div:hover {
+  background:var(--background-modifier-hover) !important;
+}
+
+/* Settings Tab — Preview */
+.ss-preview-wrap {
+  display:flex; gap:6px; flex-wrap:wrap; padding:16px;
+  background: var(--background-primary); border-radius:8px;
+  border:1px solid var(--background-modifier-border);
+  justify-content:center; align-items:center;
+}
+.ss-preview-word-card {
+  text-align:center; background:var(--background-secondary); border-radius:5px; padding:6px 8px; min-width:60px; max-width:90px; border:1px solid var(--background-modifier-border); display:flex; flex-direction:column; gap:2px;
+}
+.ss-preview-english {
+  font-size:11px; color:var(--text-normal); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ss-preview-original {
+  font-size:13px; font-style:italic;
+}
+.ss-preview-translit {
+  font-size:9px; color:var(--text-muted); opacity:0.8;
+}
+.ss-preview-strongs {
+  font-size:9px; font-weight:700; opacity:0.75;
+}
+
+/* Settings Tab — Hero */
+.ss-hero {
+  display: flex; align-items: center; gap: 24px; padding: 16px; margin-bottom: 24px;
+}
+.ss-hero-icon {
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Settings Tab — Font Grid Button */
+.ss-font-btn {
+  padding: 8px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s;
+}
+
+/* Theme-aware interlinear labels and recording controls. */
+.ss-recording-controls { opacity: 0; transition: opacity .15s; }
+.ss-recording-controls:hover { opacity: 1; }
+.ss-recording-controls button[aria-pressed="true"] { outline: 2px solid var(--interactive-accent); }
+.ss-selection-actions button { min-height: 36px; color: var(--text-normal); }
+.theme-light .ss-word-card:not(:hover) .ss-card-english,
+.theme-light .ss-tooltip-word-card:not(:hover) .ss-tc-eng { color: var(--text-normal); }
+
+html.ss-card-showing .ss-recording-controls button { cursor: pointer !important; }
+
+@media (hover: none), (pointer: coarse) {
+  .ss-recording-controls {
+    opacity: 1; flex-wrap: wrap; justify-content: center;
+    width: max-content; max-width: calc(100vw - 16px);
+    bottom: max(12px, env(safe-area-inset-bottom)) !important;
+  }
+  .ss-recording-controls button { min-height: 36px; }
+}

@@ -1,0 +1,20 @@
+(async () => {
+ const p = app.plugins.plugins['scripture-scribe'];
+ const el = document.createElement('div');
+ el.innerHTML = '<p>as Paul 1 Cor 6:11 says and v. 12</p><p><strong>Rom</strong> 7:25–8:1</p><p><a>Jn 3:16</a> and <code>Jude 5</code></p>';
+ p.highlightInElement(el, null);
+ const refs = [...new Set([...el.querySelectorAll('.ss-ref-highlight')].map(e=>e.dataset.ref))];
+ const before = el.querySelectorAll('.ss-ref-highlight').length;
+ p.highlightInElement(el,null);
+ if(before!==el.querySelectorAll('.ss-ref-highlight').length) throw Error('double wrapping');
+ if(refs.join('|')!=='1 Corinthians 6:11|1 Corinthians 6:12|Romans 7:25-8:1') throw Error('reading-mode result: '+refs);
+ const editor={getValue:()=>'> Trent says this. / John says: [but] he that ***acknowledgeth*** the Son hath the Father also. 1 Jn 2:23', getCursor:()=>({line:0,ch:10}),posToOffset:()=>10};
+ const ref={book:'1 John',chapter:2,verseStart:23,raw:'1 Jn 2:23',start:0,end:9};
+ await p.tooltip.showRecordingRef(ref,editor);
+ if(!p.tooltip.card.isVisible()) throw Error('card did not open');
+ p.tooltip.card.togglePin(); p.tooltip.card.hide();
+ if(!p.tooltip.card.isVisible()) throw Error('pin failed');
+ const context=p.recordingContext(ref,'Whosoever denieth the Son, the same hath not the Father: [but] he that acknowledgeth the Son hath the Father also.',editor);
+ if(!context.noteText?.includes('***acknowledgeth***') || !context.contrastText?.includes('Trent')) throw Error('note context missing');
+ return JSON.stringify({status:'PASS',refs,duplicateWrap:false,cardVisible:p.tooltip.card.isVisible(),pinned:p.tooltip.card.isPinned(),controls:[...document.querySelectorAll('.ss-recording-controls button')].map(e=>e.textContent),scanStarted:p.scanStarted});
+})();

@@ -1,0 +1,158 @@
+{
+  "Genesis": {
+    "file": "Genesis.json",
+    "verses": 1500
+  },
+  "Exodus": {
+    "file": "Exodus.json",
+    "verses": 1150
+  },
+  "Leviticus": {
+    "file": "Leviticus.json",
+    "verses": 829
+  },
+  "Numbers": {
+    "file": "Numbers.json",
+    "verses": 1243
+  },
+  "Deuteronomy": {
+    "file": "Deuteronomy.json",
+    "verses": 885
+  },
+  "Isaiah": {
+    "file": "Isaiah.json",
+    "verses": 1259
+  },
+  "Jeremiah": {
+    "file": "Jeremiah.json",
+    "verses": 1338
+  },
+  "Lamentations": {
+    "file": "Lamentations.json",
+    "verses": 154
+  },
+  "Ezekiel": {
+    "file": "Ezekiel.json",
+    "verses": 1236
+  },
+  "Daniel": {
+    "file": "Daniel.json",
+    "verses": 291
+  },
+  "Hosea": {
+    "file": "Hosea.json",
+    "verses": 147
+  },
+  "Joel": {
+    "file": "Joel.json",
+    "verses": 47
+  },
+  "Amos": {
+    "file": "Amos.json",
+    "verses": 146
+  },
+  "Obadiah": {
+    "file": "Obadiah.json",
+    "verses": 21
+  },
+  "Jonah": {
+    "file": "Jonah.json",
+    "verses": 37
+  },
+  "Micah": {
+    "file": "Micah.json",
+    "verses": 90
+  },
+  "Nahum": {
+    "file": "Nahum.json",
+    "verses": 33
+  },
+  "Habakkuk": {
+    "file": "Habakkuk.json",
+    "verses": 56
+  },
+  "Zephaniah": {
+    "file": "Zephaniah.json",
+    "verses": 53
+  },
+  "Haggai": {
+    "file": "Haggai.json",
+    "verses": 38
+  },
+  "Zechariah": {
+    "file": "Zechariah.json",
+    "verses": 194
+  },
+  "Malachi": {
+    "file": "Malachi.json",
+    "verses": 49
+  },
+  "Job": {
+    "file": "Job.json",
+    "verses": 1036
+  },
+  "Psalms": {
+    "file": "Psalms.json",
+    "verses": 1473
+  },
+  "Proverbs": {
+    "file": "Proverbs.json",
+    "verses": 915
+  },
+  "Ecclesiastes": {
+    "file": "Ecclesiastes.json",
+    "verses": 202
+  },
+  "Song of Solomon": {
+    "file": "Song of Solomon.json",
+    "verses": 103
+  },
+  "Joshua": {
+    "file": "Joshua.json",
+    "verses": 658
+  },
+  "Judges": {
+    "file": "Judges.json",
+    "verses": 618
+  },
+  "Ruth": {
+    "file": "Ruth.json",
+    "verses": 85
+  },
+  "1 Samuel": {
+    "file": "1 Samuel.json",
+    "verses": 772
+  },
+  "2 Samuel": {
+    "file": "2 Samuel.json",
+    "verses": 651
+  },
+  "1 Kings": {
+    "file": "1 Kings.json",
+    "verses": 774
+  },
+  "2 Kings": {
+    "file": "2 Kings.json",
+    "verses": 697
+  },
+  "1 Chronicles": {
+    "file": "1 Chronicles.json",
+    "verses": 825
+  },
+  "2 Chronicles": {
+    "file": "2 Chronicles.json",
+    "verses": 789
+  },
+  "Ezra": {
+    "file": "Ezra.json",
+    "verses": 280
+  },
+  "Nehemiah": {
+    "file": "Nehemiah.json",
+    "verses": 337
+  },
+  "Esther": {
+    "file": "Esther.json",
+    "verses": 167
+  }
+}

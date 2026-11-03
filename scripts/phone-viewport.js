@@ -1,0 +1,1 @@
+JSON.stringify({hover:matchMedia('(hover: none)').matches,coarse:matchMedia('(pointer: coarse)').matches,panels:[...app.plugins.plugins['scripture-scribe'].panelViews||[]].length,leaves:(()=>{let out=[];app.workspace.iterateAllLeaves(l=>out.push(l.view.getViewType()));return out})()})

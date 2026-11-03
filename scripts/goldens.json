@@ -1,0 +1,1028 @@
+{
+  "G25": {
+    "mode": "strongs",
+    "count": 200,
+    "ms": 2,
+    "top": [
+      {
+        "ref": "Romans 8:28",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Romans 8:37",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Romans 9:13",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Romans 9:25",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Romans 13:8",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Romans 13:9",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "1 Corinthians 2:9",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "1 Corinthians 8:3",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "2 Corinthians 9:7",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "2 Corinthians 11:11",
+        "src": "Exact",
+        "score": null
+      }
+    ]
+  },
+  "H7225": {
+    "mode": "strongs",
+    "count": 48,
+    "ms": 0,
+    "top": [
+      {
+        "ref": "Genesis 1:1",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Genesis 10:10",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Genesis 49:3",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Exodus 23:19",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Exodus 34:26",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Leviticus 2:12",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Leviticus 23:10",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Numbers 15:20",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Numbers 15:21",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Numbers 18:12",
+        "src": "Exact",
+        "score": null
+      }
+    ]
+  },
+  "g0025": {
+    "mode": "strongs",
+    "count": 200,
+    "ms": 1,
+    "top": [
+      {
+        "ref": "Romans 8:28",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Romans 8:37",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Romans 9:13",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Romans 9:25",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Romans 13:8",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "Romans 13:9",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "1 Corinthians 2:9",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "1 Corinthians 8:3",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "2 Corinthians 9:7",
+        "src": "Exact",
+        "score": null
+      },
+      {
+        "ref": "2 Corinthians 11:11",
+        "src": "Exact",
+        "score": null
+      }
+    ]
+  },
+  "ἀγάπη": {
+    "mode": "original",
+    "count": 200,
+    "ms": 364,
+    "top": [
+      {
+        "ref": "Acts 15:25",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 1:7",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 5:5",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 5:8",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 8:35",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 8:37",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 8:39",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 11:28",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 12:9",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 12:19",
+        "src": "Keyword",
+        "score": null
+      }
+    ]
+  },
+  "אלהים": {
+    "mode": "original",
+    "count": 200,
+    "ms": 517,
+    "top": [
+      {
+        "ref": "Genesis 1:1",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 1:2",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 1:3",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 1:4",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 1:5",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 1:6",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 1:7",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 1:8",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 1:9",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 1:10",
+        "src": "Keyword",
+        "score": null
+      }
+    ]
+  },
+  "love": {
+    "mode": "english",
+    "count": 200,
+    "ms": 13,
+    "top": [
+      {
+        "ref": "Acts 15:25",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 1:7",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 5:5",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 5:8",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 8:35",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 8:37",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 8:39",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 9:13",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 9:25",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 11:28",
+        "src": "Keyword",
+        "score": null
+      }
+    ]
+  },
+  "shepherd": {
+    "mode": "english",
+    "count": 152,
+    "ms": 121,
+    "top": [
+      {
+        "ref": "Acts 20:28",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "1 Corinthians 9:7",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Ephesians 4:11",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Hebrews 13:20",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "1 Peter 2:25",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "1 Peter 5:2",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "1 Peter 5:4",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Jude 1:12",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Revelation 2:27",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Revelation 7:17",
+        "src": "Keyword",
+        "score": null
+      }
+    ]
+  },
+  "eternal life": {
+    "mode": "english",
+    "count": 34,
+    "ms": 157,
+    "top": [
+      {
+        "ref": "Matthew 19:16",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Mark 10:17",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Mark 10:30",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Luke 10:25",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Luke 18:18",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "John 3:15",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "John 5:39",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "John 6:54",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "John 6:68",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "John 10:28",
+        "src": "Keyword",
+        "score": null
+      }
+    ]
+  },
+  "faith AND works": {
+    "mode": "boolean",
+    "count": 25,
+    "ms": 348,
+    "top": [
+      {
+        "ref": "2 Chronicles 34:12",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Romans 3:27",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Romans 4:5",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Romans 9:32",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Galatians 2:16",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Galatians 3:2",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Galatians 3:5",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Galatians 5:6",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "1 Thessalonians 1:3",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "2 Thessalonians 1:11",
+        "src": null,
+        "score": null
+      }
+    ]
+  },
+  "faith|grace": {
+    "mode": "boolean",
+    "count": 200,
+    "ms": 274,
+    "top": [
+      {
+        "ref": "Genesis 6:8",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Genesis 19:19",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Genesis 32:5",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Genesis 33:8",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Genesis 33:10",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Genesis 33:15",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Genesis 34:11",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Genesis 39:4",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Genesis 47:25",
+        "src": null,
+        "score": null
+      },
+      {
+        "ref": "Genesis 47:29",
+        "src": null,
+        "score": null
+      }
+    ]
+  },
+  "love NOT world": {
+    "mode": "boolean",
+    "count": 200,
+    "ms": 245,
+    "top": [
+      {
+        "ref": "John 15:19",
+        "src": "Keyword",
+        "score": 1
+      },
+      {
+        "ref": "1 John 2:15",
+        "src": "Keyword",
+        "score": 1
+      },
+      {
+        "ref": "1 Enoch 108:15",
+        "src": "Keyword",
+        "score": 0.839
+      },
+      {
+        "ref": "John 13:1",
+        "src": "Keyword",
+        "score": 0.818
+      },
+      {
+        "ref": "John 17:23",
+        "src": "Keyword",
+        "score": 0.727
+      },
+      {
+        "ref": "John 3:16",
+        "src": "Keyword",
+        "score": 0.636
+      },
+      {
+        "ref": "John 3:19",
+        "src": "Keyword",
+        "score": 0.636
+      },
+      {
+        "ref": "John 12:25",
+        "src": "Keyword",
+        "score": 0.636
+      },
+      {
+        "ref": "John 14:31",
+        "src": "Keyword",
+        "score": 0.636
+      },
+      {
+        "ref": "John 17:24",
+        "src": "Keyword",
+        "score": 0.636
+      }
+    ]
+  },
+  "leads me beside still waters": {
+    "mode": "phrase",
+    "count": 200,
+    "ms": 1141,
+    "top": [
+      {
+        "ref": "Psalms 23:2",
+        "src": "Phrase",
+        "score": 0.9
+      },
+      {
+        "ref": "1 Enoch 108:15",
+        "src": "Phrase",
+        "score": 0.563
+      },
+      {
+        "ref": "Numbers 24:6",
+        "src": "Keyword",
+        "score": 0.567
+      },
+      {
+        "ref": "Isaiah 32:20",
+        "src": "Keyword",
+        "score": 0.567
+      },
+      {
+        "ref": "Ezekiel 32:13",
+        "src": "Keyword",
+        "score": 0.567
+      },
+      {
+        "ref": "Joshua 3:16",
+        "src": "Keyword",
+        "score": 0.436
+      },
+      {
+        "ref": "Leviticus 23:38",
+        "src": "Keyword",
+        "score": 0.405
+      },
+      {
+        "ref": "Revelation 22:11",
+        "src": "Keyword",
+        "score": 0.405
+      },
+      {
+        "ref": "Genesis 1:6",
+        "src": "Keyword",
+        "score": 0.342
+      },
+      {
+        "ref": "Joshua 3:13",
+        "src": "Keyword",
+        "score": 0.342
+      }
+    ]
+  },
+  "in the beginning God created": {
+    "mode": "phrase",
+    "count": 200,
+    "ms": 970,
+    "top": [
+      {
+        "ref": "Genesis 1:1",
+        "src": "Phrase",
+        "score": 1
+      },
+      {
+        "ref": "Mark 13:19",
+        "src": "Phrase",
+        "score": 0.85
+      },
+      {
+        "ref": "1 Enoch 108:15",
+        "src": "Phrase",
+        "score": 0.9
+      },
+      {
+        "ref": "Mark 10:6",
+        "src": "Phrase",
+        "score": 0.65
+      },
+      {
+        "ref": "Ephesians 3:9",
+        "src": "Phrase",
+        "score": 0.65
+      },
+      {
+        "ref": "Revelation 3:14",
+        "src": "Phrase",
+        "score": 0.65
+      },
+      {
+        "ref": "Genesis 1:20",
+        "src": "Phrase",
+        "score": 0.533
+      },
+      {
+        "ref": "Genesis 1:21",
+        "src": "Phrase",
+        "score": 0.533
+      },
+      {
+        "ref": "Genesis 1:24",
+        "src": "Phrase",
+        "score": 0.533
+      },
+      {
+        "ref": "Genesis 1:27",
+        "src": "Phrase",
+        "score": 0.533
+      }
+    ]
+  },
+  "morph:V-AAI*": {
+    "mode": "morph",
+    "count": 200,
+    "ms": 3,
+    "top": [
+      {
+        "ref": "Acts 1:3",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 1:4",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 1:5",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 1:18",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 2:2",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 2:3",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 2:14",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 2:22",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 2:24",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 2:29",
+        "src": "Morph",
+        "score": null
+      }
+    ]
+  },
+  "morph:G4100|V-A*": {
+    "mode": "morph",
+    "count": 96,
+    "ms": 11,
+    "top": [
+      {
+        "ref": "Acts 4:4",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 8:12",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 9:42",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 13:48",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 17:12",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Acts 17:34",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Romans 10:14",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Matthew 21:32",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Mark 16:13",
+        "src": "Morph",
+        "score": null
+      },
+      {
+        "ref": "Mark 16:14",
+        "src": "Morph",
+        "score": null
+      }
+    ]
+  },
+  "semantic:forgiveness of sins": {
+    "mode": "semantic",
+    "count": 200,
+    "ms": 47,
+    "top": [
+      {
+        "ref": "Acts 5:31",
+        "src": null,
+        "score": 1
+      },
+      {
+        "ref": "Acts 13:38",
+        "src": null,
+        "score": 1
+      },
+      {
+        "ref": "Acts 26:18",
+        "src": null,
+        "score": 1
+      },
+      {
+        "ref": "Ephesians 1:7",
+        "src": null,
+        "score": 1
+      },
+      {
+        "ref": "Colossians 1:14",
+        "src": null,
+        "score": 1
+      },
+      {
+        "ref": "Sirach 28:4",
+        "src": null,
+        "score": 1
+      },
+      {
+        "ref": "1 Enoch 13:5",
+        "src": null,
+        "score": 0.769
+      },
+      {
+        "ref": "1 Kings 16:13",
+        "src": null,
+        "score": 0.309
+      },
+      {
+        "ref": "John 8:24",
+        "src": null,
+        "score": 0.309
+      },
+      {
+        "ref": "John 20:23",
+        "src": null,
+        "score": 0.309
+      }
+    ]
+  },
+  "nt love": {
+    "mode": "english",
+    "count": 200,
+    "ms": 7,
+    "top": [
+      {
+        "ref": "Acts 15:25",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 1:7",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 5:5",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 5:8",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 8:35",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 8:37",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 8:39",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 9:13",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 9:25",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Romans 11:28",
+        "src": "Keyword",
+        "score": null
+      }
+    ]
+  },
+  "ot shepherd": {
+    "mode": "english",
+    "count": 124,
+    "ms": 89,
+    "top": [
+      {
+        "ref": "Genesis 4:2",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 13:7",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 13:8",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 26:20",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 29:8",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 38:12",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 43:32",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 46:32",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 46:34",
+        "src": "Keyword",
+        "score": null
+      },
+      {
+        "ref": "Genesis 47:3",
+        "src": "Keyword",
+        "score": null
+      }
+    ]
+  }
+}

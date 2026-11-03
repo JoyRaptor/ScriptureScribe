@@ -1,0 +1,1 @@
+(()=>{const p=app.plugins.plugins['scripture-scribe'];const panel=p.getReadingPanel();return {bibleMode:panel.bibleMode,query:panel.searchInput.value,results:panel.searchResultsEl.textContent.slice(0,180),selectionMenuOpen:!!document.querySelector('.ss-selection-actions')};})();

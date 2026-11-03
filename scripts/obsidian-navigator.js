@@ -1,0 +1,1 @@
+(async()=>{const p=app.plugins.plugins['scripture-scribe'];p.tooltip.card.hide(true);const panel=await p.activatePanel();return JSON.stringify({panel:!!panel,ready:!!panel?.refLbl,leaves:app.workspace.getLeavesOfType('scripture-scribe-panel').map(l=>l.view.constructor.name)});})();

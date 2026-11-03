@@ -1,0 +1,1 @@
+JSON.stringify({layoutReady:app.workspace.layoutReady,pluginLoaded:app.plugins.plugins['scripture-scribe']?._loaded,methods:Object.getOwnPropertyNames(Object.getPrototypeOf(app.plugins.plugins['scripture-scribe'])).filter(k=>/load|scan/i.test(k)),viewport:{w:innerWidth,h:innerHeight},notes:app.vault.getMarkdownFiles().length})

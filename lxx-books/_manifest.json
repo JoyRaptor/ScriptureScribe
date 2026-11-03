@@ -1,0 +1,242 @@
+{
+  "Genesis": {
+    "file": "Genesis.json",
+    "verses": 1531
+  },
+  "Exodus": {
+    "file": "Exodus.json",
+    "verses": 1173
+  },
+  "Leviticus": {
+    "file": "Leviticus.json",
+    "verses": 859
+  },
+  "Numbers": {
+    "file": "Numbers.json",
+    "verses": 1288
+  },
+  "Deuteronomy": {
+    "file": "Deuteronomy.json",
+    "verses": 958
+  },
+  "Joshua": {
+    "file": "Joshua.json",
+    "verses": 656
+  },
+  "Judges": {
+    "file": "Judges.json",
+    "verses": 618
+  },
+  "Ruth": {
+    "file": "Ruth.json",
+    "verses": 85
+  },
+  "1 Samuel": {
+    "file": "1 Samuel.json",
+    "verses": 806
+  },
+  "2 Samuel": {
+    "file": "2 Samuel.json",
+    "verses": 695
+  },
+  "1 Kings": {
+    "file": "1 Kings.json",
+    "verses": 814
+  },
+  "2 Kings": {
+    "file": "2 Kings.json",
+    "verses": 719
+  },
+  "1 Chronicles": {
+    "file": "1 Chronicles.json",
+    "verses": 942
+  },
+  "2 Chronicles": {
+    "file": "2 Chronicles.json",
+    "verses": 822
+  },
+  "1 Esdras": {
+    "file": "1 Esdras.json",
+    "verses": 431
+  },
+  "Ezra": {
+    "file": "Ezra.json",
+    "verses": 280
+  },
+  "Nehemiah": {
+    "file": "Nehemiah.json",
+    "verses": 406
+  },
+  "Psalms": {
+    "file": "Psalms.json",
+    "verses": 2534
+  },
+  "Proverbs": {
+    "file": "Proverbs.json",
+    "verses": 902
+  },
+  "Ecclesiastes": {
+    "file": "Ecclesiastes.json",
+    "verses": 222
+  },
+  "Song of Solomon": {
+    "file": "Song of Solomon.json",
+    "verses": 117
+  },
+  "Job": {
+    "file": "Job.json",
+    "verses": 1069
+  },
+  "Wisdom": {
+    "file": "Wisdom.json",
+    "verses": 436
+  },
+  "Sirach Prologue": {
+    "file": "Sirach Prologue.json",
+    "verses": 22
+  },
+  "Sirach": {
+    "file": "Sirach.json",
+    "verses": 1402
+  },
+  "Esther": {
+    "file": "Esther.json",
+    "verses": 166
+  },
+  "Judith": {
+    "file": "Judith.json",
+    "verses": 340
+  },
+  "Tobit": {
+    "file": "Tobit.json",
+    "verses": 244
+  },
+  "Tobit (S)": {
+    "file": "Tobit (S).json",
+    "verses": 244
+  },
+  "Hosea": {
+    "file": "Hosea.json",
+    "verses": 197
+  },
+  "Amos": {
+    "file": "Amos.json",
+    "verses": 146
+  },
+  "Micah": {
+    "file": "Micah.json",
+    "verses": 105
+  },
+  "Joel": {
+    "file": "Joel.json",
+    "verses": 73
+  },
+  "Obadiah": {
+    "file": "Obadiah.json",
+    "verses": 21
+  },
+  "Jonah": {
+    "file": "Jonah.json",
+    "verses": 48
+  },
+  "Nahum": {
+    "file": "Nahum.json",
+    "verses": 48
+  },
+  "Habakkuk": {
+    "file": "Habakkuk.json",
+    "verses": 56
+  },
+  "Zephaniah": {
+    "file": "Zephaniah.json",
+    "verses": 52
+  },
+  "Haggai": {
+    "file": "Haggai.json",
+    "verses": 37
+  },
+  "Zechariah": {
+    "file": "Zechariah.json",
+    "verses": 211
+  },
+  "Malachi": {
+    "file": "Malachi.json",
+    "verses": 55
+  },
+  "Isaiah": {
+    "file": "Isaiah.json",
+    "verses": 1290
+  },
+  "Jeremiah": {
+    "file": "Jeremiah.json",
+    "verses": 1341
+  },
+  "Baruch": {
+    "file": "Baruch.json",
+    "verses": 141
+  },
+  "Lamentations": {
+    "file": "Lamentations.json",
+    "verses": 154
+  },
+  "Epistle of Jeremiah": {
+    "file": "Epistle of Jeremiah.json",
+    "verses": 72
+  },
+  "Ezekiel": {
+    "file": "Ezekiel.json",
+    "verses": 1273
+  },
+  "Daniel": {
+    "file": "Daniel.json",
+    "verses": 424
+  },
+  "Daniel (Th)": {
+    "file": "Daniel (Th).json",
+    "verses": 424
+  },
+  "Susanna": {
+    "file": "Susanna.json",
+    "verses": 60
+  },
+  "Susanna (Th)": {
+    "file": "Susanna (Th).json",
+    "verses": 64
+  },
+  "Bel and the Dragon": {
+    "file": "Bel and the Dragon.json",
+    "verses": 42
+  },
+  "Bel (Th)": {
+    "file": "Bel (Th).json",
+    "verses": 42
+  },
+  "1 Maccabees": {
+    "file": "1 Maccabees.json",
+    "verses": 924
+  },
+  "2 Maccabees": {
+    "file": "2 Maccabees.json",
+    "verses": 555
+  },
+  "3 Maccabees": {
+    "file": "3 Maccabees.json",
+    "verses": 228
+  },
+  "4 Maccabees": {
+    "file": "4 Maccabees.json",
+    "verses": 484
+  },
+  "Psalms of Solomon": {
+    "file": "Psalms of Solomon.json",
+    "verses": 332
+  },
+  "1 Enoch": {
+    "file": "1 Enoch.json",
+    "verses": 353
+  },
+  "Odes": {
+    "file": "Odes.json",
+    "verses": 500
+  }
+}

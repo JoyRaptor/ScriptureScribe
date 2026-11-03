@@ -1,0 +1,1 @@
+(()=>({selected:window.getSelection()?.toString(),menuVisible:!!document.querySelector('.ss-selection-actions')&&getComputedStyle(document.querySelector('.ss-selection-actions')).display!=='none',buttons:[...document.querySelectorAll('.ss-selection-actions button')].map(b=>b.textContent)}))();

@@ -1,0 +1,15 @@
+# Dependencies and build scratch
+node_modules/
+scripts/.golden-bundle.cjs
+
+# Backups, review snapshots, scratch clones
+old-backups/
+review-backups/
+review-sources/
+temp_bible_repo/
+*.rar
+*.zip
+desktop.ini
+
+# Upstream clone that can be re-downloaded (see DATA-SOURCES.md)
+STEPBible-Data-TyndaleData/

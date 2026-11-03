@@ -1,0 +1,10 @@
+{
+  "id": "scripture-scribe",
+  "name": "ScriptureScribe",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Non-invasive scripture reference hovers with offline KJV fallback and smart embedding (Link, Tooltip, Quote Block).",
+  "author": "ScriptureScribe",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}
