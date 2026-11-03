@@ -1,82 +1,95 @@
-<div align="center">
+<p align="center">
+  <a href="https://joyraptor.github.io/ScriptureScribe/"><img src="docs/images/readme-banner.png" alt="ScriptureScribe: Scripture, illuminated. A Bible study workbench for Obsidian, shown with a verse tooltip, an interlinear Greek panel and floating lexicon cards for λόγος, רֵאשִׁית and χάρις"></a>
+</p>
 
-# 📜 ScriptureScribe
+<p align="center">
+  <a href="https://github.com/JoyRaptor/ScriptureScribe/releases/latest"><img src="https://img.shields.io/github/v/release/JoyRaptor/ScriptureScribe?style=for-the-badge&label=release&color=ff3fd0&labelColor=0a0816" alt="Latest release"></a>
+  <a href="https://obsidian.md"><img src="https://img.shields.io/badge/Obsidian-plugin-9b6bff?style=for-the-badge&logo=obsidian&logoColor=white&labelColor=0a0816" alt="Obsidian plugin"></a>
+  <img src="https://img.shields.io/badge/works-offline-7dff9c?style=for-the-badge&labelColor=0a0816" alt="Works offline">
+  <a href="https://github.com/JoyRaptor/ScriptureScribe/releases"><img src="https://img.shields.io/github/downloads/JoyRaptor/ScriptureScribe/total?style=for-the-badge&color=35e0ff&labelColor=0a0816" alt="Downloads"></a>
+</p>
 
-**A Bible study workbench inside Obsidian.**
-Hover any reference for the verse. Read Scripture in a side panel. Dig into Hebrew, Greek and the Septuagint. Turn verses into full-screen cards.
+<p align="center">
+  <b>Hover any verse</b> · <b>Read the Bible beside your notes</b> · <b>Hebrew &amp; Greek, word by word</b> · <b>Full-screen verse cards</b>
+</p>
 
-[**⬇ Download the plugin**](https://github.com/JoyRaptor/ScriptureScribe/releases/latest) · [Install in 2 minutes](#-install-in-2-minutes) · [Features](#-features)
+<p align="center">
+  <a href="https://github.com/JoyRaptor/ScriptureScribe/releases/latest/download/scripture-scribe.zip"><img src="docs/images/readme-button.png" width="440" alt="Download ScriptureScribe: one zip, everything included"></a>
+</p>
 
-![Hover tooltip showing Romans 10:1 beside an interlinear Greek reading panel](docs/images/tooltip.png)
+<p align="center">
+  <a href="https://joyraptor.github.io/ScriptureScribe/"><b>Website</b></a> &nbsp;·&nbsp;
+  <a href="#-install-in-2-minutes"><b>Install in 2 minutes</b></a> &nbsp;·&nbsp;
+  <a href="https://github.com/JoyRaptor/ScriptureScribe/releases"><b>Releases</b></a>
+</p>
 
-</div>
+<br>
 
----
+<p align="center"><img src="docs/images/readme-hover.png" alt="01 Hover: hover a reference and the verse appears. A real Obsidian note with Rm10:1 underlined and its tooltip open."></p>
 
-## ✨ Features
+- Spots references as you type: `Gen 1:1`, `Jn 3:16`, `1 Cor 13:4-8`, `2Tim 3:16`, `Ps 119:105`, `Rm10:1`
+- **Nothing is added to your markdown.** References are underlined on screen, and your files stay untouched.
+- Hover for the verse, switch translation, and jump to cross-references
+- **Embed** a verse as a link, footnote or quote block, or use *Embed All* to convert the whole note in one undo step
+- The KJV is built in, so it works with no internet
 
-### 💬 Hover any reference
-Type `Rom 10:1`, `Gen 1:1-3`, `1 Cor 13:4` or `Jn 3:16` in any note and ScriptureScribe underlines it. Hover to see the verse, switch translation, jump to cross-references, or **embed** it as a link, footnote or quote block. Works offline: the KJV is bundled.
+<p align="center"><img src="docs/images/readme-bible.png" alt="02 Read: the whole Bible docked beside your notes. Bible mode showing Genesis 1 with a drop cap and italic supplied words."></p>
 
-### 📖 Bible mode
-A full reading panel in your sidebar. Browse any book and chapter, with verse numbers, drop caps, and the KJV's supplied words in *italics*, the way the translators printed them.
+- Open the **Reading Panel** and read any book and chapter in your sidebar, next to the note you're writing
+- Verse numbers, drop caps, and the KJV's supplied words in *italics*, the way the translators marked them
 
-![Bible mode showing Genesis 1 in the sidebar](docs/images/bible-mode.png)
+<p align="center"><img src="docs/images/readme-research.png" alt="03 Research: every word down to the root. Interlinear Greek for Romans 10:1, a Strong's search for G5485 with 192 results, and the In Your Notes and cross-reference lists."></p>
 
-### 🔬 Research mode
-<img src="docs/images/research-mode.png" align="right" width="260" alt="Research mode: Strong's G5485 search">
-
-- **Interlinear** Hebrew (OT), Greek (NT) and Septuagint, with transliteration, Strong's numbers and morphology on every word
+- **Interlinear** Hebrew OT, Greek NT and Septuagint: original word, transliteration, Strong's number and morphology
 - **Strong's search**: type `G5485` or `H7225` to get the lexicon entry and every verse that uses the word
-- **Search by English, Greek, Hebrew or meaning**: keyword and semantic search across the whole Bible
-- **Lexicons**: Strong's, LSJ (Liddell-Scott-Jones) and Swete's LXX
-- **In your notes**: see every note in your vault that mentions the passage you are reading
-- **Cross-references** under every verse
+- **Search** by English, Greek or Hebrew, or **by meaning** with the built-in semantic index
+- **Lexicons**: Strong's (19,570 entries), LSJ (10,714) and Swete's LXX
+- **In your notes**: every note in your vault that cites the passage
+- **Cross-references** for 28,752 verses
 
-<br clear="right">
+<p align="center"><img src="docs/images/readme-cards.png" alt="04 Present: put the Word in lights. Card Mode showing Romans 6:1 as a full-screen card in the Velvet Aurora skin."></p>
 
-### 🖼 Card Mode
-Turn any verse into a full-screen, cinematic card, ideal for sermon prep, recording, or presenting. Cards are plain HTML **skins** you can swap or write yourself. Included: *Velvet Aurora*, *Velvet Rainbow* and *Obsidian Minimal*.
+- **Card Mode** puts any verse on screen as a full-screen card, for preaching, teaching, streaming or recording
+- Skins are plain HTML files: *Velvet Aurora*, *Velvet Rainbow* and *Obsidian Minimal* are included, or write your own
+- Next and previous card, pin, emphasis and contrast are commands you can bind to hotkeys
 
-![Card Mode showing Romans 6:1 in the Velvet Aurora skin](docs/images/card-mode.png)
-
-### Everything else
-- Multiple translations in the tooltip, falling back to the bundled KJV when offline
-- Three embed styles: **link**, **footnote**, **quote block**, plus *Embed All* in one undo step
-- 1 Enoch (Charles) supplement for the addresses the base text lacks
-- Verse of the Day
-
----
+<br>
 
 ## 🚀 Install in 2 minutes
 
-> **No coding, no terminal.** The download already contains everything, including the Bible, Hebrew, Greek and lexicon data (about 77 MB zipped, 210 MB unzipped).
+> **No coding, no terminal.** The download already includes the Bible, Hebrew, Greek and lexicon data (77 MB zipped, about 210 MB installed).
 
-1. **[Download `scripture-scribe-v1.0.0.zip`](https://github.com/JoyRaptor/ScriptureScribe/releases/latest)** from the latest release.
+1. **[Download `scripture-scribe.zip`](https://github.com/JoyRaptor/ScriptureScribe/releases/latest/download/scripture-scribe.zip)**
 2. **Unzip it.** You get one folder named `scripture-scribe`.
-3. **Find your vault's plugins folder:** `<your vault>/.obsidian/plugins/`
-   - `.obsidian` is hidden. In Obsidian go to **Settings → Files & Links** and note your vault location, then show hidden files:
+3. **Open your vault's plugins folder:** `<your vault>/.obsidian/plugins/`
+   - `.obsidian` is hidden. To see it:
      - **Windows:** File Explorer → View → Show → *Hidden items*
      - **Mac:** in Finder press `Cmd + Shift + .`
+   - Not sure where your vault is? In Obsidian, click the vault name at the bottom left and choose *Manage vaults*.
    - If there's no `plugins` folder, create one.
 4. **Move the `scripture-scribe` folder into `plugins`.**
-   The result should be `.obsidian/plugins/scripture-scribe/main.js`.
+   You should end up with `.obsidian/plugins/scripture-scribe/main.js`.
 5. In Obsidian open **Settings → Community plugins**, turn off **Restricted mode**, click the refresh icon, and switch **ScriptureScribe** on.
-6. Type a reference like `John 3:16` in a note and hover it. 🎉
+6. Type `John 3:16` in a note and hover it. 🎉
 
-**Opening the panels:** press `Ctrl/Cmd + P` and run **ScriptureScribe: Open Reading Panel** (Bible and Research modes), **Toggle Card Mode**, or **Search Strong's number**.
+**Opening the panels:** press `Ctrl/Cmd + P` and run **ScriptureScribe: Open Reading Panel**, **Toggle Card Mode** or **Search Strong's number**.
 
-### Updating
-Download the new zip and overwrite the `scripture-scribe` folder. Your settings are kept, because they live in `data.json`, which the zip never includes.
+<details>
+<summary><b>Updating</b></summary>
 
-### Troubleshooting
+Download the new zip and replace the `scripture-scribe` folder. Your settings are kept: they live in `data.json`, which the zip never includes.
+</details>
+
+<details>
+<summary><b>Troubleshooting</b></summary>
+
 | Problem | Fix |
 |---|---|
 | Plugin isn't listed | The folder must be exactly `.obsidian/plugins/scripture-scribe/` with `manifest.json` directly inside, not nested one level deeper. Click the refresh icon in Community plugins. |
-| Nothing is underlined | Make sure the plugin is enabled and you are in a note, not a canvas. Try `John 3:16`. |
-| First load is slow | The Greek, Hebrew and search data loads on demand, so the first lookup of each is the slowest. |
+| Nothing is underlined | Check the plugin is enabled and you're in a note, not a canvas. Try `John 3:16`. |
+| First lookup is slow | The Greek, Hebrew and search data loads on demand, so the first lookup of each kind takes longest. |
 
----
+</details>
 
 ## 🧭 Commands
 
@@ -84,17 +97,14 @@ Open the command palette with `Ctrl/Cmd + P`:
 
 | Command | What it does |
 |---|---|
-| **Open Reading Panel** | Bible mode / Research mode sidebar |
+| **Open Reading Panel** | Bible mode and Research mode sidebar |
 | **Toggle Card Mode** | Full-screen verse cards |
 | **Search Strong's number** | Jump to a lexicon entry, e.g. `G5485` |
 | **Show Verse of the Day** | Today's verse |
-| **Embed All References as Links / Quote Blocks / Footnote Tooltips** | Convert every reference in the note, undo-able |
+| **Embed All References as Links / Quote Blocks / Footnote Tooltips** | Convert every reference in the note, undoable |
 
-## 🔎 Recognised reference formats
-
-`Genesis 1:1` · `Gen 1:1` · `Gn 1:1-3` · `1 Cor 13:4` · `2Tim 3:16` · `Jn 3:16` · `Ps 119:105` · `Rev 22`
-
-## ✍️ Embedding styles
+<details>
+<summary><b>Embedding styles</b></summary>
 
 ```md
 [John 3:16](https://www.biblegateway.com/passage/?search=John+3%3A16&version=KJV)   ← link
@@ -105,10 +115,10 @@ John 3:16[^ss1]                                                                 
 > "For God so loved the world, that he gave his only begotten Son..."             ← quote block
 > — John 3:16, KJV
 ```
+</details>
 
----
-
-## 🛠 Build from source
+<details>
+<summary><b>Build from source</b></summary>
 
 ```bash
 git clone https://github.com/JoyRaptor/ScriptureScribe.git
@@ -118,11 +128,16 @@ npm run build   # produces main.js
 npm test
 ```
 
-Copy `main.js`, `manifest.json`, `styles.css` and the data files into `<vault>/.obsidian/plugins/scripture-scribe/`. Most people should use the [release zip](https://github.com/JoyRaptor/ScriptureScribe/releases/latest) instead, since it bundles the data. See [DATA-SOURCES.md](DATA-SOURCES.md) for where each dataset comes from.
+Copy `main.js`, `manifest.json`, `styles.css` and the data files into `<vault>/.obsidian/plugins/scripture-scribe/`. Most people should use the [release zip](https://github.com/JoyRaptor/ScriptureScribe/releases/latest) instead, because it bundles the data. [DATA-SOURCES.md](DATA-SOURCES.md) says where each dataset comes from.
+
+The website lives in [`docs/`](docs/) and is served by GitHub Pages. The README images are rendered from [`docs/brand/readme-art.html`](docs/brand/readme-art.html) by [`scripts/render-readme-art.sh`](scripts/render-readme-art.sh).
+</details>
 
 ## 📚 Data & credits
 
-KJV (public domain, with supplied-word markup from eBible), STEPBible TAHOT/TAGNT/TBESH/TBESG (CC BY 4.0, [STEPBible.org](https://www.stepbible.org)), LSJ, Swete's Septuagint, and R. H. Charles' 1 Enoch (1917). Full provenance in [DATA-SOURCES.md](DATA-SOURCES.md).
+KJV (public domain, with supplied-word markup from eBible) · STEPBible TAHOT, TAGNT, TBESH and TBESG (CC BY 4.0, [STEPBible.org](https://www.stepbible.org)) · LSJ · Swete's Septuagint · R. H. Charles' 1 Enoch (1917). Full provenance is in [DATA-SOURCES.md](DATA-SOURCES.md).
+
+ScriptureScribe is an independent project and isn't affiliated with Obsidian.
 
 ## License
 

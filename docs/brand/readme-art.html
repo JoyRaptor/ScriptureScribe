@@ -1,0 +1,189 @@
+<!doctype html>
+<!-- Source for the README images. Render one plate with ?p=<name>, e.g.
+     msedge --headless=new --window-size=1280,620 --force-device-scale-factor=1.25 --screenshot=banner.png "http://localhost:8791/brand/readme-art.html?p=banner"
+     (see scripts/render-readme-art.sh) -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ScriptureScribe README art</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=Gentium+Book+Plus:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Noto+Serif+Hebrew:wght@400;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  html, body { scroll-behavior: auto; }
+  body { overflow: hidden; }
+  .plate { display: none; position: relative; width: 1280px; overflow: hidden; isolation: isolate; }
+  .plate.on { display: block; }
+  .plate .bg-glow { position: absolute; inset: 0; z-index: -2; }
+  .plate .floor { height: 40%; }
+  .plate .streak { opacity: .85; }
+  .plate .streak path:first-child { stroke-dashoffset: 0; animation: none; }
+  *, *::before, *::after { animation-play-state: paused !important; }
+  .bokeh i { animation: none !important; }
+
+  /* banner */
+  #banner { height: 620px; }
+  #banner .in { position: absolute; inset: 0; display: grid; grid-template-columns: 500px 1fr; gap: 20px; align-items: center; padding: 0 56px 0 64px; }
+  #banner .brand { font-size: 1.25rem; margin-bottom: 26px; }
+  #banner .brand-mark { width: 34px; height: 34px; }
+  #banner h1 { font-size: 104px; }
+  #banner .lede { font-size: 1.12rem; margin: 22px 0 24px; max-width: 26em; }
+  #banner .stage { width: 100%; }
+  #banner .hero-meta { margin-top: 0; }
+
+  /* feature plates */
+  .feat { height: 640px; }
+  .feat .in { position: absolute; inset: 0; display: grid; grid-template-columns: 470px 1fr; gap: 40px; align-items: center; padding: 0 64px; }
+  .feat.rev .in { grid-template-columns: 1fr 470px; }
+  .feat h2 { font-size: 66px; margin-bottom: 18px; }
+  .feat .lead { color: var(--ink-2); font-size: 1.12rem; margin: 0; max-width: 24em; }
+  .feat .tags { margin-top: 22px; }
+  .vis { position: relative; height: 100%; display: flex; align-items: center; justify-content: center; perspective: 1600px; }
+
+  #hover .frame { width: 640px; transform: rotateY(-12deg) rotateX(4deg); }
+  #hover .hud { right: 0; top: 70px; }
+  #hover .hud-2 { left: 10px; right: auto; top: auto; bottom: 64px; }
+
+  #bible .frame-tall { width: 330px; max-height: none; height: 760px; transform: rotate(-3deg) translateY(90px); }
+  #bible .frame-tall img { mask-image: none; -webkit-mask-image: none; }
+  #bible .hud { left: auto; right: 60px; bottom: 120px; }
+  #bible .hud-2 { left: 40px; right: auto; top: 90px; bottom: auto; }
+
+  #research { height: 760px; }
+  #research .in { display: block; padding: 54px 64px 0; text-align: center; }
+  #research h2 { font-size: 62px; margin-bottom: 34px; }
+  #research .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; align-items: start; }
+  #research .row .frame { height: 470px; }
+  #research .row .frame img { height: 100%; object-fit: cover; object-position: top; }
+  #research .cap { margin-top: 16px; font: 600 .78rem var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--cyan); text-shadow: 0 0 10px rgba(53, 224, 255, .7); }
+  #research .row > div:nth-child(2) .cap { color: var(--pink); text-shadow: 0 0 10px rgba(255, 63, 208, .7); }
+  #research .row > div:nth-child(3) .cap { color: var(--lime); text-shadow: 0 0 10px rgba(125, 255, 156, .6); }
+  #research .row > div:nth-child(1) .frame { transform: rotate(-1.5deg); }
+  #research .row > div:nth-child(3) .frame { transform: rotate(1.5deg); }
+
+  #cards { height: 830px; }
+  #cards .in { display: block; padding: 50px 90px 0; text-align: center; }
+  #cards h2 { font-size: 62px; margin-bottom: 30px; }
+  #cards .frame-cinema { max-width: 900px; }
+  #cards .skins { margin-top: 26px; }
+
+  /* download button: transparent background */
+  #button { width: 680px; height: 170px; background: transparent; display: none; }
+  #button.on { display: flex; align-items: center; justify-content: center; }
+  body.btnmode { background: transparent; }
+  body.btnmode .bg { display: none; }
+  #button .btn-xl { margin: 0; width: auto; padding: 18px 34px 18px 28px; font-size: 1.15rem; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#35e0ff"/><stop offset=".55" stop-color="#9b6bff"/><stop offset="1" stop-color="#ff3fd0"/></linearGradient><linearGradient id="st" x1="0" x2="1"><stop offset="0" stop-color="#ff6a3d" stop-opacity="0"/><stop offset=".25" stop-color="#ff6a3d"/><stop offset=".7" stop-color="#ff3fd0"/><stop offset="1" stop-color="#9b6bff" stop-opacity="0"/></linearGradient></defs></svg>
+
+<!-- ── banner ── -->
+<section class="plate" id="banner">
+  <div class="bg-glow"></div><div class="bokeh"></div>
+  <svg class="streak" viewBox="0 0 1600 900" preserveAspectRatio="none"><path d="M-40 860 C 380 860, 620 760, 860 790 S 1260 870, 1640 740" fill="none" stroke="url(#st)" stroke-width="2.5"/><path class="dots" d="M1000 260 C 1220 220, 1380 290, 1640 240" fill="none" stroke="#ff3fd0" stroke-width="2" stroke-dasharray="1 9" stroke-linecap="round"/></svg>
+  <div class="floor"></div>
+  <div class="in">
+    <div>
+      <div class="brand"><svg class="brand-mark" viewBox="0 0 32 32"><path d="M16 9c-3-2.2-7.2-2.8-11-2v17c3.8-.8 8 0 11 2 3-2 7.2-2.8 11-2V7c-3.8-.8-8-.2-11 2Z" fill="none" stroke="url(#bm)" stroke-width="2" stroke-linejoin="round"/><path d="M16 9v17" stroke="url(#bm)" stroke-width="2"/></svg><span>Scripture<b>Scribe</b></span></div>
+      <h1>Scripture,<br><em>illuminated.</em></h1>
+      <p class="lede">A Bible study workbench for Obsidian. Hover verses, read the Bible beside your notes, dig into Hebrew &amp; Greek, and present full-screen verse cards.</p>
+      <ul class="hero-meta"><li>Works offline</li><li>Hebrew · Greek · LXX</li><li>Free &amp; open source</li></ul>
+    </div>
+    <div class="stage">
+      <svg class="wires" viewBox="0 0 100 75" preserveAspectRatio="none"><path d="M14 12 C 22 16, 26 22, 34 30"/><path d="M24 66 C 30 62, 36 58, 44 56"/><path d="M84 66 C 84 58, 86 52, 88 46"/></svg>
+      <figure class="frame frame-main"><img src="../images/shot-tooltip.png" alt=""></figure>
+      <figure class="frame frame-side"><img src="../images/shot-interlinear.png" alt=""></figure>
+      <div class="hud hud-a"><span class="hud-k">G3056 · noun</span><span class="hud-w greek">λόγος</span><span class="hud-g">word</span><i class="bars"><b></b><b></b><b></b></i></div>
+      <div class="hud hud-b"><span class="hud-k">H7225 · noun</span><span class="hud-w hebrew" dir="rtl">רֵאשִׁית</span><span class="hud-g">beginning</span></div>
+      <div class="hud hud-c"><span class="hud-k">G5485 · 192 verses</span><span class="hud-w greek">χάρις</span><span class="hud-g">grace</span><i class="bars"><b></b><b></b></i></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── hover ── -->
+<section class="plate feat" id="hover">
+  <div class="bg-glow"></div><div class="bokeh"></div>
+  <div class="in">
+    <div>
+      <p class="kicker"><b>01</b> Hover</p>
+      <h2>Hover a reference.<br><em>The verse appears.</em></h2>
+      <p class="lead">Type <code>Rm10:1</code>, <code>Gen 1:1</code> or <code>1 Cor 13:4-8</code>. Hover for the verse, its cross-references, and one-click embedding.</p>
+      <ul class="tags"><li>Nothing added to your files</li><li>KJV built in</li><li>3 embed styles</li></ul>
+    </div>
+    <div class="vis">
+      <figure class="frame"><img src="../images/shot-tooltip.png" alt=""></figure>
+      <div class="hud"><span class="hud-k">Romans 10:1 · KJV</span><span class="hud-w greek">εὐδοκία</span><span class="hud-g">desire · G2107</span><i class="bars"><b></b><b></b><b></b></i></div>
+      <div class="hud hud-2 hud-c"><span class="hud-k">Embed as</span><span class="hud-w" style="font:600 1.3rem/1.5 var(--sans)">Link · Footnote · Quote</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── bible ── -->
+<section class="plate feat rev" id="bible">
+  <div class="bg-glow"></div><div class="bokeh"></div>
+  <div class="in">
+    <div class="vis">
+      <figure class="frame frame-tall"><img src="../images/shot-bible.png" alt=""></figure>
+      <div class="hud hud-b"><span class="hud-k">Bible mode</span><span class="hud-w" style="font:700 1.9rem/1.2 var(--sans)">Genesis 1</span><span class="hud-g">KJV · supplied words in italics</span></div>
+      <div class="hud hud-2"><span class="hud-k">Reading panel</span><span class="hud-w" style="font:700 1.5rem/1.2 var(--sans)">66 books</span></div>
+    </div>
+    <div>
+      <p class="kicker"><b>02</b> Read</p>
+      <h2>The whole Bible,<br><em>docked beside your notes.</em></h2>
+      <p class="lead">Browse any book and chapter in the sidebar while you write. Drop caps, verse numbers, and the translators' supplied words in italics.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── research ── -->
+<section class="plate" id="research">
+  <div class="bg-glow"></div><div class="bokeh"></div>
+  <div class="in">
+    <p class="kicker" style="justify-content:center"><b>03</b> Research</p>
+    <h2>Every word, <em>down to the root.</em></h2>
+    <div class="row">
+      <div><figure class="frame"><img src="../images/shot-interlinear.png" alt=""></figure><p class="cap">Interlinear Greek · Hebrew · LXX</p></div>
+      <div><figure class="frame"><img src="../images/research-mode.png" alt=""></figure><p class="cap">Strong's search · G5485</p></div>
+      <div><figure class="frame"><img src="../images/shot-xrefs.png" alt=""></figure><p class="cap">Your notes + cross-refs</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── cards ── -->
+<section class="plate" id="cards">
+  <div class="bg-glow"></div><div class="bokeh"></div>
+  <div class="in">
+    <p class="kicker" style="justify-content:center"><b>04</b> Present</p>
+    <h2>Put the Word <em>in lights.</em></h2>
+    <figure class="frame frame-cinema"><img src="../images/card-mode.png" alt=""></figure>
+    <div class="skins"><span class="skin on">Velvet Aurora</span><span class="skin">Velvet Rainbow</span><span class="skin">Obsidian Minimal</span><span class="skin skin-add">+ your own .html</span></div>
+  </div>
+</section>
+
+<!-- ── download button ── -->
+<section class="plate" id="button">
+  <span class="btn btn-neon btn-xl">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Download ScriptureScribe<small>v1.0.0 · one zip · everything included</small></span>
+  </span>
+</section>
+
+<script>
+  const p = new URLSearchParams(location.search).get("p") || "banner";
+  document.getElementById(p).classList.add("on");
+  if (p === "button") document.body.classList.add("btnmode");
+  // Deterministic bokeh so re-renders match.
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const colors = ["#35e0ff", "#ff3fd0", "#9b6bff", "#ffc24b", "#7dff9c", "#4d7cff", "#ff6a3d"];
+  document.querySelectorAll(".plate.on .bokeh").forEach((b) => {
+    for (let i = 0; i < 22; i++) {
+      const el = document.createElement("i"), big = rnd() < 0.25, size = big ? 18 + rnd() * 40 : 3 + rnd() * 6, c = colors[i % colors.length];
+      el.style.cssText = `left:${rnd() * 100}%;top:${rnd() * 100}%;width:${size}px;height:${size}px;background:${c};box-shadow:0 0 ${size}px ${c};--b:${big ? 12 : 1}px;--o:${big ? .25 : .7}`;
+      b.appendChild(el);
+    }
+  });
+</script>
+</body>
+</html>
