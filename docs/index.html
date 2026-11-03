@@ -31,6 +31,7 @@
     <span>Scripture<b>Scribe</b></span>
   </a>
   <nav class="nav-links" aria-label="Sections">
+    <a href="#why">Why</a>
     <a href="#hover">Hover</a>
     <a href="#read">Read</a>
     <a href="#research">Research</a>
@@ -98,6 +99,27 @@
   </div>
 </div>
 
+<!-- ═════════════ WHY ═════════════ -->
+<section class="sec" id="why">
+  <div class="wrap">
+    <div class="center reveal">
+      <p class="kicker"><b>✦</b> Why ScriptureScribe</p>
+      <h2>A second brain<br><em>for your Bible.</em></h2>
+      <p class="sub">Bible software like Logos and e-Sword was built around a library, with a notes pane added on. ScriptureScribe starts from your notes. Everything you write becomes part of how you read Scripture, and the Bible, the original languages and your own commentary all live in one place.</p>
+    </div>
+    <div class="vs reveal" role="table" aria-label="Traditional Bible software compared with ScriptureScribe">
+      <div class="vs-row vs-head" role="row"><span role="columnheader"></span><span role="columnheader">Traditional Bible software</span><span role="columnheader">ScriptureScribe</span></div>
+      <div class="vs-row" role="row"><b role="rowheader">Your notes</b><span role="cell">Live inside the app's own database</span><span role="cell">Plain Markdown files you own, in Obsidian, forever</span></div>
+      <div class="vs-row" role="row"><b role="rowheader">Connecting a note to a verse</b><span role="cell">Attach it to the verse by hand</span><span role="cell">Just write “Rom 6:1”. It's connected, and so is “v4” on the next line</span></div>
+      <div class="vs-row" role="row"><b role="rowheader">Reading the Bible</b><span role="cell">A note icon here and there</span><span role="cell">Every verse your notes cite lights up in that note's color. Click it to read what was written</span></div>
+      <div class="vs-row" role="row"><b role="rowheader">Other people's insight</b><span role="cell">Buy or install commentary modules</span><span role="cell">Drop a friend's, pastor's or teacher's notes into your vault. Their writing appears on every verse they cite</span></div>
+      <div class="vs-row" role="row"><b role="rowheader">Writing</b><span role="cell">Copy, paste, format</span><span role="cell">Hover to check, one click to embed, Embed All for the whole note</span></div>
+      <div class="vs-row" role="row"><b role="rowheader">Hebrew &amp; Greek</b><span role="cell">Often a separate purchase</span><span role="cell">Interlinear, Strong's, LSJ and the Septuagint included, offline</span></div>
+      <div class="vs-row" role="row"><b role="rowheader">Teaching &amp; video</b><span role="cell">Export to presentation software</span><span role="cell">Card Mode: hover a verse in your notes and it fills the screen</span></div>
+    </div>
+  </div>
+</section>
+
 <!-- ═════════════ 01 HOVER ═════════════ -->
 <section class="sec" id="hover">
   <div class="wrap split">
@@ -139,16 +161,16 @@
   <div class="wrap split split-rev">
     <div class="copy reveal">
       <p class="kicker"><b>02</b> Read</p>
-      <h2>The whole Bible,<br><em>docked beside your notes.</em></h2>
-      <p>Open the Reading Panel in <strong>Bible mode</strong> and read any book and chapter in your sidebar, with verse numbers, drop caps, and the KJV's supplied words in <em>italics</em>, the way the translators marked them.</p>
-      <p>Write on the left and read on the right, with no browser tab and no copy-paste.</p>
+      <h2>The Bible,<br><em>lit up by your notes.</em></h2>
+      <p>Open <strong>Bible mode</strong> beside your writing and read any chapter. Every verse that one of your notes cites is highlighted in that note's own color, and a verse cited by several notes blends their colors. Plain verses stay plain, so at a glance you see where your study has been and where it hasn't.</p>
+      <p>Click a highlighted verse and <strong>In your notes</strong> lists every note that cites it, with the sentence around each citation, one click from the note itself. That includes notes other people wrote, if they're in your vault.</p>
       <ul class="tags">
-        <li>All 66 books</li><li>Supplied-word italics</li><li>Chapter navigation</li>
+        <li>A color per note</li><li>Click a verse, read the notes</li><li>All 66 books</li><li>Supplied-word italics</li>
       </ul>
     </div>
     <div class="phone reveal" aria-label="Bible mode screenshot">
-      <figure class="frame frame-tall"><img src="images/shot-bible.png" width="400" height="1300" loading="lazy" alt="The Bible mode reading panel showing Genesis chapter 1 with a large drop cap, verse numbers and italic supplied words"></figure>
-      <div class="hud hud-float"><span class="hud-k">BIBLE MODE</span><span class="hud-w serif">Genesis 1</span><span class="hud-g">KJV · 31 verses</span></div>
+      <figure class="frame frame-tall"><img src="images/shot-xrefs.png" width="440" height="760" loading="lazy" alt="The reading panel's In Your Notes list for Romans 10:1: two notes that cite the verse, each with the sentence around the citation, above the verse's cross-references"></figure>
+      <div class="hud hud-float"><span class="hud-k">IN YOUR NOTES</span><span class="hud-w" style="font:700 1.6rem/1.2 var(--sans)">Romans 10:1</span><span class="hud-g">cited in 2 notes</span></div>
     </div>
   </div>
 </section>
@@ -267,7 +289,7 @@
     </div>
     <div>
       <p class="foot-h">Data</p>
-      <p class="small">KJV (public domain) · STEPBible TAHOT, TAGNT, TBESH, TBESG (CC BY 4.0) · LSJ · Swete's Septuagint · R. H. Charles' 1 Enoch. <a href="https://github.com/JoyRaptor/ScriptureScribe/blob/main/DATA-SOURCES.md">Sources</a></p>
+      <p class="small">Data created by <a href="https://www.stepbible.org">STEPBible.org</a> based on work at Tyndale House Cambridge (CC BY 4.0). Cross-references from <a href="https://www.openbible.info/labs/cross-references/">OpenBible.info</a> (CC BY). Septuagint from <a href="https://github.com/eliranwong/LXX-Swete-1930">LXX-Swete-1930</a> (GPL-3.0). KJV and Charles' 1 Enoch are public domain. <a href="https://github.com/JoyRaptor/ScriptureScribe/blob/main/THIRD-PARTY-NOTICES.md">All licenses</a></p>
     </div>
   </div>
 </footer>

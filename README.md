@@ -25,6 +25,20 @@
 
 <br>
 
+## ✦ A second brain for your Bible
+
+Bible software like Logos and e-Sword was built around a library, with a notes pane added on. ScriptureScribe starts from **your notes**: everything you write becomes part of how you read Scripture.
+
+| | Traditional Bible software | ScriptureScribe |
+|---|---|---|
+| **Your notes** | Live inside the app's own database | Plain Markdown files you own, in Obsidian |
+| **Connecting a note to a verse** | Attach it by hand | Just write `Rom 6:1`. It's connected, and so is `v4` on the next line |
+| **Reading the Bible** | A note icon here and there | Every verse your notes cite lights up in that note's color. Click it to read what was written |
+| **Other people's insight** | Buy or install commentary modules | Drop a friend's, pastor's or teacher's notes into your vault. Their writing appears on every verse they cite |
+| **Writing** | Copy, paste, format | Hover to check, one click to embed, *Embed All* for the whole note |
+| **Hebrew & Greek** | Often a separate purchase | Interlinear, Strong's, LSJ and the Septuagint included, offline |
+| **Teaching & video** | Export to presentation software | Card Mode: hover a verse in your notes and it fills the screen |
+
 <p align="center"><img src="docs/images/readme-hover.png" alt="01 Hover: hover a reference and the verse appears. A real Obsidian note with Rm10:1 underlined and its tooltip open."></p>
 
 - Spots references as you type: `Gen 1:1`, `Jn 3:16`, `1 Cor 13:4-8`, `2Tim 3:16`, `Ps 119:105`, `Rm10:1`
@@ -35,7 +49,9 @@
 
 <p align="center"><img src="docs/images/readme-bible.png" alt="02 Read: the whole Bible docked beside your notes. Bible mode showing Genesis 1 with a drop cap and italic supplied words."></p>
 
-- Open the **Reading Panel** and read any book and chapter in your sidebar, next to the note you're writing
+- Open **Bible mode** beside your writing. Every verse one of your notes cites is highlighted in that note's own color, and a verse cited by several notes blends them. Plain verses stay plain.
+- Click a highlighted verse: **In your notes** lists every note that cites it, with the sentence around each citation, one click away. That includes notes other people wrote, if they're in your vault.
+- References write naturally: `Acts 10:39` then `v40` on the next bullet, `Psalm 50` for a whole chapter (previews verse 1, never floods Bible mode), STEPBible codes like `Deu30:19`
 - Verse numbers, drop caps, and the KJV's supplied words in *italics*, the way the translators marked them
 
 <p align="center"><img src="docs/images/readme-research.png" alt="03 Research: every word down to the root. Interlinear Greek for Romans 10:1, a Strong's search for G5485 with 192 results, and the In Your Notes and cross-reference lists."></p>
@@ -128,6 +144,8 @@ npm run build   # produces main.js
 npm test
 ```
 
+To check which addresses a note links, without Obsidian: `node scripts/check-addresses.mjs "note.md"`.
+
 Copy `main.js`, `manifest.json`, `styles.css` and the data files into `<vault>/.obsidian/plugins/scripture-scribe/`. Most people should use the [release zip](https://github.com/JoyRaptor/ScriptureScribe/releases/latest) instead, because it bundles the data. [DATA-SOURCES.md](DATA-SOURCES.md) says where each dataset comes from.
 
 The website lives in [`docs/`](docs/) and is served by GitHub Pages. The README images are rendered from [`docs/brand/readme-art.html`](docs/brand/readme-art.html) by [`scripts/render-readme-art.sh`](scripts/render-readme-art.sh).
@@ -135,10 +153,10 @@ The website lives in [`docs/`](docs/) and is served by GitHub Pages. The README 
 
 ## 📚 Data & credits
 
-KJV (public domain, with supplied-word markup from eBible) · STEPBible TAHOT, TAGNT, TBESH and TBESG (CC BY 4.0, [STEPBible.org](https://www.stepbible.org)) · LSJ · Swete's Septuagint · R. H. Charles' 1 Enoch (1917). Full provenance is in [DATA-SOURCES.md](DATA-SOURCES.md).
+Data created by [STEPBible.org](https://www.stepbible.org) based on work at Tyndale House Cambridge (CC BY 4.0): Hebrew and Greek interlinear, Strong's, LSJ and morphology. Cross-references from [OpenBible.info](https://www.openbible.info/labs/cross-references/) (CC BY). Septuagint from [LXX-Swete-1930](https://github.com/eliranwong/LXX-Swete-1930) (GPL-3.0). KJV and R. H. Charles' 1 Enoch are public domain. Each dataset's license and the changes made are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), with provenance in [DATA-SOURCES.md](DATA-SOURCES.md).
 
 ScriptureScribe is an independent project and isn't affiliated with Obsidian.
 
 ## License
 
-MIT
+The ScriptureScribe code is [MIT](LICENSE). Bundled data files keep their own licenses: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

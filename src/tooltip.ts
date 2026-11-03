@@ -2,7 +2,7 @@ import { mapToHebrew } from "./versification";
 import { renderPassage } from "./textFormatting";
 import { App, Editor } from "obsidian";
 import type { VerseCard } from "./verseCard";
-import { ScriptureRef, refToString, parseScriptureRefs } from "./parser";
+import { ScriptureRef, refToString, parseScriptureRefs, previewRef } from "./parser";
 import { getScripture } from "./fetcher";
 import { embedSingleRef, embedInterlinear, getGlobalEmbedStyle, setGlobalEmbedStyle, setCachedCursorOffset, clearCachedCursorOffset } from "./embedEngine";
 import { ScriptureScribeSettings, VERSION_CODES, DEFAULT_SETTINGS } from "./settings";
@@ -297,6 +297,8 @@ export class ScriptureTooltip {
   // ── Show ──────────────────────────────────────────────────────
 
   async show(ref: ScriptureRef, x: number, y: number, editor: Editor, hoverOffset?: number | null): Promise<void> {
+    const source = ref; // as written in the note; embedding replaces this exact text
+    ref = previewRef(ref);
     this.cancelHide();
     this.currentRef  = ref;
     this._lastEditor = editor;
@@ -347,7 +349,7 @@ export class ScriptureTooltip {
     if (verse.offline) offEl.style.display = "inline";
 
     this.wireVersion(ref, editor, verLbl);
-    this.wireEmbed(ref, editor);
+    this.wireEmbed(source, editor);
     this.wireInterlinear(ref);
     await ensureCrossRefData();
     if (this.currentRef !== ref) return;
@@ -362,11 +364,12 @@ export class ScriptureTooltip {
   // ── Card Mode ─────────────────────────────────────────────────
 
   private async showAsCard(ref: ScriptureRef, force = false): Promise<void> {
-    const verse = await getScripture(ref, this.settings);
+    const shown = previewRef(ref);
+    const verse = await getScripture(shown, this.settings);
     if (this.currentRef !== ref || !this.card) return; // left the verse while fetching
     await this.card.show({
-      key: refToString(ref),
-      reference: refToString(ref),
+      key: refToString(shown),
+      reference: refToString(shown),
       text: verse.text,
       formattedText: verse.formattedText,
       lazyContext: this.cardContext ? () => this.cardContext!(ref, verse.text, this._lastEditor) : undefined,
@@ -481,7 +484,7 @@ export class ScriptureTooltip {
         const mDetail = parseMorph(morph);
         if (mDetail) {
           const mWrap = sdefEl.createDiv({ cls: "ss-morph-wrap" });
-          mWrap.style.cssText = `margin:10px 0; padding:10px; background:var(--background-secondary); border-radius:6px; border:1px solid ${this.PM}44; position:relative; overflow:hidden;`;
+          mWrap.style.cssText = `margin:10px 0; padding:10px; background:rgba(255,255,255,.6); border-radius:6px; border:1px solid ${this.PM}66; position:relative; overflow:hidden;`;
           
           // Technical Row
           const techRow = mWrap.createDiv({ text: mDetail.techLine });
@@ -489,12 +492,12 @@ export class ScriptureTooltip {
           
           // Plain English Row (Simple Mode)
           const plainRow = mWrap.createDiv({ text: mDetail.plainLine });
-          plainRow.style.cssText = `font-size:11px; color:var(--text-normal); line-height:1.4; font-style:italic; opacity:0.9;`;
+          plainRow.style.cssText = `font-size:11px; color:#2a2838; line-height:1.4; font-style:italic;`;
 
           // Teaching Note (if significant)
           if (mDetail.note && this.settings.morphology.showTeachingNotes) {
             const noteBox = mWrap.createDiv();
-            noteBox.style.cssText = `margin-top:8px; padding-top:8px; border-top:1px dashed ${this.PM}44; font-size:10.5px; color:var(--text-muted); line-height:1.4;`;
+            noteBox.style.cssText = `margin-top:8px; padding-top:8px; border-top:1px dashed ${this.PM}44; font-size:10.5px; color:#3d3a4f; line-height:1.4;`;
             noteBox.innerHTML = `<span style="color:${this.PX}; font-weight:700; margin-right:4px;">💡</span> ${mDetail.note}`;
           }
         }
@@ -867,17 +870,17 @@ export class ScriptureTooltip {
         const mDetail = parseMorph(morphCode);
         if (mDetail) {
           const mWrap = simple.createDiv({ cls: "ss-morph-wrap" });
-          mWrap.style.cssText = `margin:10px 0; padding:10px; background:var(--background-secondary); border-radius:6px; border:1px solid ${this.PM}44; position:relative; overflow:hidden;`;
+          mWrap.style.cssText = `margin:10px 0; padding:10px; background:rgba(255,255,255,.6); border-radius:6px; border:1px solid ${this.PM}66; position:relative; overflow:hidden;`;
           
           const techRow = mWrap.createDiv({ text: mDetail.techLine });
           techRow.style.cssText = `font-size:10px; font-weight:700; color:${this.PX}; margin-bottom:4px; font-variant:all-small-caps;`;
           
           const plainRow = mWrap.createDiv({ text: mDetail.plainLine });
-          plainRow.style.cssText = `font-size:11px; color:var(--text-normal); line-height:1.4; font-style:italic; opacity:0.9;`;
+          plainRow.style.cssText = `font-size:11px; color:#2a2838; line-height:1.4; font-style:italic;`;
 
           if (mDetail.note && this.settings.morphology.showTeachingNotes) {
             const noteBox = mWrap.createDiv();
-            noteBox.style.cssText = `margin-top:8px; padding-top:8px; border-top:1px dashed ${this.PM}44; font-size:10.5px; color:var(--text-muted); line-height:1.4;`;
+            noteBox.style.cssText = `margin-top:8px; padding-top:8px; border-top:1px dashed ${this.PM}44; font-size:10.5px; color:#3d3a4f; line-height:1.4;`;
             noteBox.innerHTML = `<span style="color:${this.PX}; font-weight:700; margin-right:4px;">💡</span> ${mDetail.note}`;
           }
         }
@@ -1114,15 +1117,15 @@ export class ScriptureTooltip {
 
     if (verBtn) {
       verBtn.style.background = this.P;
-      verBtn.style.color = this.PL;
+      verBtn.style.color = this.PV;
     }
     if (embBtn) {
       embBtn.style.background = this.P;
-      embBtn.style.color = this.PL;
+      embBtn.style.color = this.PV;
     }
     if (embCaret) {
       embCaret.style.background = this.P;
-      embCaret.style.color = this.PL;
+      embCaret.style.color = this.PV;
       embCaret.style.borderLeft = `1px solid ${this.PM}`;
     }
     if (intBtn) {

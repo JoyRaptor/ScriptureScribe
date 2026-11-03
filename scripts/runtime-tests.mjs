@@ -34,5 +34,8 @@ assert(disk.has('plugin/vault-index-cache-desktop-B.json'));
 assert.equal(disk.get('plugin/vault-index-cache.json'),legacyCache,'device caches must not overwrite the shared migration cache');
 count=0;await api.buildVaultIndex(vault,[],undefined,'plugin',()=>false,true,'phone-A');assert.equal(count,0);
 await api.buildVaultIndex(vault,[],undefined,'plugin',()=>true,false,'cancelled');assert(!disk.has('plugin/vault-index-cache-cancelled.json'));
+// A chapter-only reference names the chapter, not its verses: Bible mode must not light every verse of it.
+const chapterNote=Object.assign(new api.TFile(),{path:'c.md',stat:{mtime:1,size:24}});files.push(chapterNote);docs.set('c.md','see Psalm 50, then Ps 50:3');
+await api.updateVaultIndexForFile(vault,chapterNote);assert.equal(api.getNotesForVerse('Psalms 50:1').length,0);assert.equal(api.getNotesForVerse('Psalms 50:3').length,1);
 api.stopVaultIndex();
 console.log(JSON.stringify({status:'PASS',checks:'lazy text, single-flight, per-book interlinear, Hebrew numbering gaps, dictionary shards, Enoch supplement, 8 mappings, LXX split range, persistent index cold/warm/edit/delete',firstTextMs:Math.round(firstTextMs),diskReads:reads},null,2));

@@ -15,8 +15,14 @@ export interface ScriptureRef {
 }
 const counts: Record<string, number[]> = verseCounts;
 const metadata = new Map(BIBLE_BOOKS.map(b => [b.name, b]));
+/** Books whose name also appears numbered ("John" / "1 John"), the only ones a stray numeral can mislead. */
+const NUMBERED_FAMILIES = new Set(BIBLE_BOOKS.flatMap(b => {
+  const base = b.name.match(/^[1-4] (.+)$/)?.[1];
+  return base ? [b.name, base, ...BIBLE_BOOKS.filter(o => o.name === base).map(o => o.name)] : [];
+}));
 const DASH = "[-‐‑‒–—―−﹣－]";
-const address = `(\\d{1,3})(?:[:.](\\d{1,3})(?:[abc]|ff?)?)?(?:[ \\t]*${DASH}[ \\t]*(\\d{1,3})(?:[:.](\\d{1,3}))?(?:[abc]|ff?)?)?(?![\\w:])`;
+// A trailing colon is fine ("Gn 15:6: Nineveh believed"); only "1:2:3" chains are refused.
+const address = `(\\d{1,3})(?:[:.](\\d{1,3})(?:[abc]|ff?)?)?(?:[ \\t]*${DASH}[ \\t]*(\\d{1,3})(?:[:.](\\d{1,3}))?(?:[abc]|ff?)?)?(?!\\w|:\\d)`;
 const escapeRE = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const names = new Map(BOOK_LOOKUP);
 for (const [alias, book] of BOOK_LOOKUP) {
@@ -28,11 +34,27 @@ for (const [alias, book] of BOOK_LOOKUP) {
     names.set(`${prefix.toLowerCase()} ${m[2]}`, book);
   }
 }
+// STEPBible/OSIS three-letter codes ("Deu30:19", "Act16:31"), as STEPBible lexicons and many notes write them.
+// Accepted only with a verse: "Act 3" or "Mat 5" in prose is too likely to be an ordinary word.
+const VERSE_ONLY_CODES = new Set<string>();
+for (const [code, book] of Object.entries({ deu: "Deuteronomy", rut: "Ruth", sng: "Song of Solomon", jol: "Joel",
+  amo: "Amos", oba: "Obadiah", nam: "Nahum", mat: "Matthew", mrk: "Mark", luk: "Luke", joh: "John", act: "Acts" })) {
+  if (!names.has(code)) { names.set(code, book); VERSE_ONLY_CODES.add(code); }
+}
 const bookPattern = [...names.keys()].sort((a, b) => b.length - a.length)
   .map(n => escapeRE(n).replace(/\s+/g, "[ \\t]+")).join("|");
 const primaryRE = new RegExp(`\\b(${bookPattern})\\.?([ \\t]*)${address}`, "gi");
 const continuationRE = new RegExp(`^[ \\t]*;[ \\t]*${address}`, "i");
 const markerRE = new RegExp(`\\b(?:vv?\\.?|ver\\.?|verses?)[ \\t]*(\\d{1,3})(?:[abc]|ff?)?(?:[ \\t]*${DASH}[ \\t]*(\\d{1,3})(?:[abc]|ff?)?)?(?!\\w)`, "g");
+
+// A blank line ends a reference run, except the one between a colon-ended lead-in and the list it
+// introduces: "…that chapter's curse-list is moral law:" ⏎⏎ "- images v15" keeps v15 in that chapter.
+const LIST_ITEM = "[ \\t]*(?:[-*+]|\\d+[.)])[ \\t]";
+const LIST_AFTER_COLON = new RegExp(`^[^\\n]*:[ \\t]*\\r?\\n[ \\t]*\\r?\\n(?:${LIST_ITEM}[^\\n]*\\r?\\n)*${LIST_ITEM}[^\\n]*$`);
+/** Whether a run of reference lines continues across the blank line between `above` and `below`. */
+export function continuesAcrossBlank(above: string, below: string): boolean {
+  return /:[ \t]*$/.test(above) && new RegExp(`^${LIST_ITEM}`).test(below);
+}
 
 /** Preserve offsets and line boundaries while excluding non-prose Markdown. */
 export function maskMarkdown(text: string): string {
@@ -80,9 +102,11 @@ export function parseScriptureRefs(text: string, translation = "KJV"): Scripture
   let m: RegExpExecArray | null;
   while ((m = primaryRE.exec(scan))) {
     const book = names.get(m[1].toLowerCase().replace(/\s+/g, " "))!;
-    // Unsupported numbered books must not become an unnumbered book.
-    if (/\b(?:[1-4]|I{1,3}|IV|First|Second|Third|Fourth|[1-4](?:st|nd|rd|th))[ \t]+$/i.test(scan.slice(Math.max(0, m.index - 14), m.index))) continue;
+    // Unsupported numbered books ("4 John") must not become an unnumbered book. Only books with numbered
+    // siblings can be misread that way, and a number ending a previous address ("Amo3:3 Rom12:2") is not a prefix.
+    if (NUMBERED_FAMILIES.has(book) && /(?<![\d:.])\b(?:[1-4]|I{1,3}|IV|First|Second|Third|Fourth|[1-4](?:st|nd|rd|th))[ \t]+$/i.test(scan.slice(Math.max(0, m.index - 14), m.index))) continue;
     if (!m[2] && !m[4]) continue;
+    if (!m[4] && VERSE_ONLY_CODES.has(m[1].toLowerCase())) continue;
     const ref = makeRef(book, m.slice(3, 7), m.index, primaryRE.lastIndex, text);
     if (!valid(ref, translation)) continue;
     if (!ref.chapterOnly && !ref.chapterEnd) {
@@ -115,13 +139,36 @@ export function parseScriptureRefs(text: string, translation = "KJV"): Scripture
     if (!anchor || anchors.some(r => r.start <= m!.index && r.end > m!.index)) continue;
     const gap = scan.slice(anchor.end, m.index);
     const anchorLine = scan.slice(scan.lastIndexOf("\n", anchor.start) + 1, anchor.start);
-    if (/\n[ \t]*\r?\n|(?:^|\n)[ \t]*#{1,6}[ \t]/.test(gap) || (/\n/.test(gap) && /^\s*#{1,6}\s/.test(anchorLine))) continue;
+    if (/(?:^|\n)[ \t]*#{1,6}[ \t]/.test(gap) || (/\n/.test(gap) && /^\s*#{1,6}\s/.test(anchorLine))) continue;
+    if (/\n[ \t]*\r?\n/.test(gap) && !LIST_AFTER_COLON.test(gap)) continue;
     const ref: ScriptureRef = { book: anchor.book, chapter: anchor.chapterEnd ?? anchor.chapter,
       verseStart: Number(m[1]), verseEnd: m[2] ? Number(m[2]) : undefined,
       raw: m[0], start: m.index, end: markerRE.lastIndex };
     if (valid(ref, translation)) results.push(ref);
   }
   return results.sort((a, b) => a.start - b.start);
+}
+/**
+ * Parse consecutive reading-mode blocks (list items, a paragraph and the list under it) the way
+ * the editor reads the source lines they came from, so a "v40" bullet can lean on the "Acts 10:39"
+ * bullet above it. `leadIn` is source text directly above the first block; isolated blocks
+ * (headings, table cells) neither use nor pass on context. Offsets are relative to each block.
+ */
+export function parseBlockRun(blocks: Array<{ text: string; isolated?: boolean }>, leadIn = "", translation = "KJV"): ScriptureRef[][] {
+  let context = leadIn;
+  return blocks.map(({ text, isolated }) => {
+    const prefix = isolated || !context ? "" : context + "\n";
+    const refs = parseScriptureRefs(prefix + text, translation).filter(r => r.start >= prefix.length)
+      .map(r => ({ ...r, start: r.start - prefix.length, end: r.end - prefix.length }));
+    context = isolated ? "" : prefix + text;
+    // Long lists: keep the tail, from a line start, so parsing stays linear.
+    if (context.length > 6000) context = context.slice(context.indexOf("\n", context.length - 6000) + 1);
+    return refs;
+  });
+}
+/** A chapter-only reference ("Psalm 50") previews as its first verse; the whole chapter is too long to show. */
+export function previewRef(ref: ScriptureRef): ScriptureRef {
+  return ref.chapterOnly ? { ...ref, chapterOnly: false, chapterEnd: undefined, verseStart: 1, verseEnd: undefined, additionalVerses: undefined } : ref;
 }
 /** Expand every selected verse, including chapter and cross-chapter references. */
 export function expandRef(ref: ScriptureRef): Array<{ chapter: number; verse: number }> {

@@ -30,6 +30,7 @@ import {
   getRefBookPalette,
   contrastSafeText,
   contrastSafePalette,
+  textOnVividFor,
   DEFAULT_PALETTE,
 } from "./bookColorUtils";
 
@@ -337,7 +338,7 @@ export class ScriptureReadingPanel extends ItemView {
       this.updatePalette();
       this.applyLayout(); // syncs α border / bg / color
       if (this.verLabel) {
-        this.verLabel.style.color = this.PL;
+        this.verLabel.style.color = this.PV;
         this.verLabel.parentElement!.style.background = this.P;
       }
       this.backBtn.style.color = this.P;
@@ -1616,7 +1617,7 @@ export class ScriptureReadingPanel extends ItemView {
     verBtn.className = "ss-panel-ver-btn";
     verBtn.style.cssText = `
       box-sizing:border-box; height:24px; padding:0 8px;
-      background:${this.P} !important; color:${this.PL} !important; border:none !important; box-shadow:none !important;
+      background:${this.P} !important; color:${this.PV} !important; border:none !important; box-shadow:none !important;
       border-radius:4px; cursor:pointer;
       font-size:10px; font-weight:700; white-space:nowrap; flex-shrink:0;
       display:flex; align-items:center; gap:2px;
@@ -1737,7 +1738,7 @@ export class ScriptureReadingPanel extends ItemView {
     this.updatePalette();
     this.applyLayout();
     if (this.verLabel) {
-      this.verLabel.style.color = this.PL;
+      this.verLabel.style.color = this.PV;
       this.verLabel.parentElement!.style.background = this.P;
     }
     this.backBtn.style.color = this.P;
@@ -1914,7 +1915,7 @@ export class ScriptureReadingPanel extends ItemView {
 
       // ✅ Sync header version pill & interlinear toggle to current book palette
       if (this.verLabel) {
-        this.verLabel.style.color = PL;
+        this.verLabel.style.color = textOnVividFor(P);
         this.verLabel.parentElement!.style.background = P;
       }
       this.intToggleBtn.style.borderColor = PM;
@@ -1949,7 +1950,7 @@ export class ScriptureReadingPanel extends ItemView {
     this.updatePalette();
     this.applyLayout();
     if (this.verLabel) {
-      this.verLabel.style.color = this.PL;
+      this.verLabel.style.color = this.PV;
       this.verLabel.parentElement!.style.background = this.P;
     }
     this.backBtn.style.color = this.P;
@@ -2685,7 +2686,7 @@ export class ScriptureReadingPanel extends ItemView {
         const mWrap = this.sdefEl.createDiv({ cls: "ss-morph-wrap" });
         mWrap.style.cssText = `
           margin:0 0 10px; padding:9px 11px;
-          background:${this.P}0a; border-radius:7px;
+          background:rgba(255,255,255,.6); border-radius:7px;
           border:1px solid ${this.P}28; position:relative;
         `;
 
@@ -2734,8 +2735,8 @@ export class ScriptureReadingPanel extends ItemView {
         const plainRow = mWrap.createDiv();
         plainRow.textContent = mDetail.plainLine;
         plainRow.style.cssText = `
-          font-size:11px; color:var(--text-normal);
-          line-height:1.4; font-style:italic; opacity:.9;
+          font-size:11px; color:#2a2838;
+          line-height:1.4; font-style:italic;
         `;
 
         // Teaching note
@@ -2744,7 +2745,7 @@ export class ScriptureReadingPanel extends ItemView {
           noteBox.style.cssText = `
             margin-top:8px; padding-top:8px;
             border-top:1px dashed ${this.P}30;
-            font-size:10.5px; color:var(--text-muted); line-height:1.55;
+            font-size:10.5px; color:#3d3a4f; line-height:1.55;
           `;
           noteBox.innerHTML = `<span style="color:${this.PX};font-weight:700;margin-right:5px;">💡</span>${mDetail.note}`;
         }

@@ -186,7 +186,7 @@ async function saveCache(): Promise<void> {
     });
     files[path] = { ...stat, contexts, entries };
   }
-  try { await cacheVault.adapter.write(cachePath, JSON.stringify({version: 4, files})); }
+  try { await cacheVault.adapter.write(cachePath, JSON.stringify({version: 5, files})); }
   catch (error) { console.warn("ScriptureScribe: could not persist vault index", error); }
 }
 function scheduleCacheSave(): void {
@@ -298,6 +298,8 @@ async function indexFile(
     const noteMap: Map<string, VerseNote> = new Map();
 
     for (const ref of refs) {
+      // "Psalm 50" names a chapter, not its verses: lighting every verse would drown the real citations.
+      if (ref.chapterOnly) continue;
       const ctx     = extractContext(content, ref.start, ref.end);
       for (const {chapter, verse} of expandRef(ref)) {
         const key = `${ref.book} ${chapter}:${verse}`;
@@ -346,7 +348,7 @@ export async function buildVaultIndex(
       try { raw = await vault.adapter.read(cachePath); }
       catch { raw = await vault.adapter.read(`${pluginDir}/vault-index-cache.json`); }
       const cached = JSON.parse(raw);
-      if (cached.version === 3 || cached.version === 4) for (const [path, record] of Object.entries(cached.files) as Array<[string, any]>) {
+      if (cached.version === 5) for (const [path, record] of Object.entries(cached.files) as Array<[string, any]>) {
         const file = vault.getAbstractFileByPath(path);
         if (!(file instanceof TFile) || exclusions.some(f => path.startsWith(f.replace(/\/?$/, "/")))) continue;
         if (file.stat.mtime !== record.mtime || file.stat.size !== record.size) continue;

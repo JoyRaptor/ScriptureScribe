@@ -5,7 +5,7 @@ import {
 import { ViewPlugin, DecorationSet, Decoration, ViewUpdate, EditorView } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import { ScriptureScribeSettings, DEFAULT_SETTINGS } from "./settings";
-import { parseScriptureRefs, ScriptureRef, refToString } from "./parser";
+import { parseScriptureRefs, parseBlockRun, continuesAcrossBlank, ScriptureRef, refToString } from "./parser";
 import { ScriptureTooltip } from "./tooltip";
 import { VerseCard } from "./verseCard";
 import { seedSkinFolder, readSkin, BUILTIN_SKIN_HTML } from "./verseCardSkins";
@@ -30,7 +30,12 @@ function buildCM6Plugin(getTooltip: () => ScriptureTooltip | null, getSettings: 
       for (const visible of view.visibleRanges) {
         let first = view.state.doc.lineAt(visible.from);
         while (first.number > 1 && first.text.trim() && !/^\s*#{1,6}\s/.test(first.text)) {
-          const previous = view.state.doc.line(first.number - 1);
+          let previous = view.state.doc.line(first.number - 1);
+          // A list introduced by a colon-ended line one blank line up still belongs to that line's run.
+          if (!previous.text.trim() && previous.number > 1) {
+            const lead = view.state.doc.line(previous.number - 1);
+            if (continuesAcrossBlank(lead.text, first.text)) previous = lead;
+          }
           if (!previous.text.trim() || /^\s*#{1,6}\s/.test(previous.text)) break;
           first = previous;
         }
@@ -191,9 +196,9 @@ export default class ScriptureScribePlugin extends Plugin {
     );
 
     // Reading mode post-processor
-    this.registerMarkdownPostProcessor((el: HTMLElement, _ctx: MarkdownPostProcessorContext) => {
+    this.registerMarkdownPostProcessor((el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
       const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-      if (!this.isExcluded(_ctx.sourcePath)) this.highlightInElement(el, view?.editor ?? null);
+      if (!this.isExcluded(ctx.sourcePath)) this.highlightInElement(el, view?.editor ?? null, this.sectionLeadIn(el, ctx));
     });
 
     // Hover — works for both CM6 decorated spans and reading mode spans
@@ -422,7 +427,29 @@ export default class ScriptureScribePlugin extends Plugin {
     });
   }
 
-  private highlightInElement(rootEl: HTMLElement, editor: Editor | null): void {
+  /**
+   * Source lines directly above a reading-mode section, back to a blank line: the run the editor
+   * parses as one, so a "v40" opening this section can still lean on the reference above it.
+   */
+  private sectionLeadIn(el: HTMLElement, ctx: MarkdownPostProcessorContext): string {
+    const info = ctx.getSectionInfo(el);
+    if (!info || info.lineStart < 1) return "";
+    const lines = info.text.split(/\r?\n/);
+    const lead: string[] = [];
+    let i = info.lineStart - 1;
+    // A list introduced by a colon-ended line one blank line up continues that line's run. The rendered
+    // list items carry no "- " marker for the parser to see, so the blank line itself is left out.
+    if (i > 0 && !lines[i].trim() && continuesAcrossBlank(lines[i - 1], lines[info.lineStart] ?? "")) i--;
+    for (; i >= 0 && lead.length < 60; i--) {
+      const line = lines[i];
+      // Stop at blank lines, frontmatter fences and code fences, none of which the editor reads across.
+      if (!line.trim() || /^(?:---|\.\.\.)\s*$/.test(line) || /^\s*(?:```|~~~)/.test(line)) break;
+      lead.unshift(line);
+    }
+    return lead.join("\n");
+  }
+
+  private highlightInElement(rootEl: HTMLElement, editor: Editor | null, leadIn = ""): void {
     const groups = new Map<Element, Text[]>();
     const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
     let node: Node | null;
@@ -434,7 +461,8 @@ export default class ScriptureScribePlugin extends Plugin {
       group.push(node as Text);
       groups.set(block, group);
     }
-    for (const nodes of groups.values()) {
+    // Blocks in one section are consecutive source lines, so they are parsed as one run (see parseBlockRun).
+    const blocks = [...groups].map(([block, nodes]) => {
       let content = "";
       const offsets: number[] = [];
       for (const tn of nodes) {
@@ -442,7 +470,11 @@ export default class ScriptureScribePlugin extends Plugin {
         const text = tn.textContent ?? "";
         content += tn.parentElement?.closest("code,pre,a") ? text.replace(/[^\r\n]/g, " ") : text;
       }
-      const refs = parseScriptureRefs(content, this.settings.primaryTranslation);
+      return { nodes, offsets, text: content, isolated: /^(?:H[1-6]|TD|TH)$/.test(block.tagName) };
+    });
+    const parsed = parseBlockRun(blocks, leadIn, this.settings.primaryTranslation);
+    for (const [b, { nodes, offsets }] of blocks.entries()) {
+      const refs = parsed[b];
       for (let i = 0; i < nodes.length; i++) {
         const tn = nodes[i];
         if (tn.parentElement?.closest("code,pre,a,.ss-ref-highlight,.ss-strongs-highlight")) continue;

@@ -1,6 +1,6 @@
 /**
  * crossRefs.ts
- * Loads and queries the Treasury of Scripture Knowledge cross-reference index.
+ * Loads and queries the OpenBible.info cross-reference index (CC BY).
  *
  * Data file: cross-refs.json (place in plugin folder alongside kjv.json)
  * Expected shape: Record<string, string[]>

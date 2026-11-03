@@ -146,35 +146,48 @@ export function isLightMode(): boolean {
 
 // ─── Palette generation ───────────────────────────────────────────────────────
 
-/**
- * Artist-curated text-on-light overrides.
- * These replace the algorithmic darkForLight() for book color groups where
- * simple black-mixing produces olive/dingy results. Each value is a
- * hand-picked accent that reads clearly on the pale \`light\` card background
- * while staying true to the hue family (saturation-preserved, not just darkened).
- *
- * Keyed by the exact base hex from BOOK_GENRE_COLOR.
- */
-const ARTIST_TEXT_ON_LIGHT: Record<string, string> = {
-  "#f9f462": "#c7a52e",  // Pauline yellow → warm amber (black-mix gives ugly olive)
-  "#55e0f9": "#24b1de",  // Major Prophets cyan → deeper teal-blue
-  "#97fe8b": "#57da1f",  // Gospels lime green → medium saturated green
-  "#35f6bf": "#1cdd80",  // Minor Prophets aqua → deeper mint-green
-  "#ffc341": "#ef8700",  // Timothy/Titus amber → deep saturated amber-orange
-};
+function hexToHsl(hex: string): [number, number, number] {
+  const [r, g, b] = hexToRgb(hex).map(c => c / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return rgbToHex(f(0) * 255, f(8) * 255, f(4) * 255);
+}
 
 /**
- * Determine the text color for use when the card hover fills with the
- * VIVID base color. If the base is a light/bright hue (low contrast vs white,
- * e.g. yellow, lime, cyan) white text vanishes — use the dark artist accent.
- * For dark/saturated bases (purple, orange, red, indigo) white is fine.
+ * The deepest-needed shade of `hex`'s hue that reads on `bg` (≥ `ratio`:1), for small text on
+ * pale cards and on vivid fills. Lightness drops in HSL with saturation held high, so lime stays
+ * green and cyan stays teal; black-mixing (the old approach) turned them olive and grey, and the
+ * hand-picked shades it replaced only reached about 2:1 on their own card tints.
+ * Yellow leans toward amber on the way down, because dark yellow reads as mud.
  */
-function textOnVividFor(base: string): string {
-  const WHITE = "#ffffff";
-  // If base already has ≥4.5:1 contrast vs white it IS a dark-ish color: white text works.
-  if (contrastRatio(base, WHITE) >= 4.5) return "#ffffff";
-  // Bright/light base — use the artist override if available, else fall back to dark.
-  return ARTIST_TEXT_ON_LIGHT[base] ?? mixToBlack(base, 0.45);
+export function deepShadeOn(hex: string, bg: string, ratio = 5): string {
+  let [h, s, l] = hexToHsl(hex);
+  if (h >= 46 && h <= 72) h = 40;
+  s = Math.max(s, 0.85);
+  for (l = Math.min(l, 0.6); l > 0.04; l -= 0.01) {
+    const shade = hslToHex(h, s, l);
+    if (contrastRatio(shade, bg) >= ratio) return shade;
+  }
+  return "#14121f";
+}
+
+/**
+ * Text color for labels sitting ON the vivid base color (hover fills, version pills).
+ * White wherever it holds up (purples, pinks, reds, indigo); a deep shade of the same hue
+ * on the bright ones (lime, cyan, yellow, amber), where white vanishes.
+ */
+export function textOnVividFor(base: string): string {
+  return contrastRatio(base, "#ffffff") >= 3.5 ? "#ffffff" : deepShadeOn(base, base, 5);
 }
 
 /**
@@ -205,9 +218,8 @@ export function generatePalette(hex: string): BookPalette {
     light,
     mid:        mixToWhite(hex, 0.50),
     dark:       mixToBlack(hex, 0.30),
-    // textOnLight: use artist-chosen accent if available; else darken algorithmically.
-    // Must be readable (≥4.5:1) on the pale `light` card bg in both light & dark mode.
-    textOnLight: ARTIST_TEXT_ON_LIGHT[hex] ?? darkForLight(hex),
+    // textOnLight: readable (≥5:1) on the pale `light` card bg in both light & dark mode.
+    textOnLight: deepShadeOn(hex, light),
     // textOnVivid: what to use when the hover fill IS the base color itself.
     textOnVivid: textOnVividFor(hex),
   };
@@ -316,17 +328,18 @@ export function contrastSafeBorder(hex: string): string {
 export function contrastSafePalette(pal: BookPalette): BookPalette {
   if (!isLightMode()) return pal;
 
-  const safeBase = contrastSafeText(pal.base);
+  // Deepen in HSL rather than mixing toward black: black-mixing turned yellow, lime and cyan
+  // olive-grey, and the card tint derived from that was mud. The tint keeps the original hue.
+  const safeBase = contrastRatio(pal.base, "#ffffff") >= 4.5 ? pal.base : deepShadeOn(pal.base, "#ffffff", 4.5);
+  const light = mixToWhite(pal.base, 0.84);
   return {
     base:       safeBase,
-    // Light shade: a very pale tint of the safe base — works as a readable bg
-    light:      mixToWhite(safeBase, 0.88),
-    mid:        contrastSafeBorder(pal.mid),
+    light,
+    // Unselected Greek and Strong's numbers sit on the near-white card background.
+    mid:        deepShadeOn(pal.base, "#f6f6f6", 4.5),
     dark:       mixToBlack(safeBase, 0.20),
-    // In light mode, base is already contrast-safe (dark on white), so
-    // textOnLight = base and textOnVivid = white (dark base → white hover text).
-    textOnLight: safeBase,
-    textOnVivid: "#ffffff",
+    textOnLight: deepShadeOn(pal.base, light),
+    textOnVivid: textOnVividFor(safeBase),
   };
 }
 

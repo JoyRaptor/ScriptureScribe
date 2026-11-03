@@ -1,15 +1,10 @@
 import { App, PluginSettingTab, Notice } from "obsidian";
 import type ScriptureScribePlugin from "./main";
 import { VERSION_CODES } from "./settings";
-import { DEFAULT_PALETTE } from "./bookColorUtils";
+import { getBookPalette, contrastSafePalette } from "./bookColorUtils";
 import { getIcon } from "./iconRegistry";
 import { listSkins, skinsFolderPath, BUILTIN_SKIN_LABEL, SKIN_GUIDE_TEXT } from "./verseCardSkins";
-
-// ── Constants & SVGs ─────────────────────────────────────────────────────────
-// Always use the default purple palette in settings UI (no per-book theming here)
-const P  = DEFAULT_PALETTE.base;
-const PL = DEFAULT_PALETTE.light;
-const PM = DEFAULT_PALETTE.mid;
+import { buildVerseHighlightStyle, setVaultHighlightSettings, getVaultHighlightTextColor } from "./vaultIndex";
 
 const BRAND_ICONS: Record<string, string> = {
   discord: `<path d="M20.317 4.492c-1.53-.69-3.17-1.2-4.885-1.49a.075.075 0 0 0-.079.036c-.21.369-.444.85-.608 1.23a18.566 18.566 0 0 0-5.487 0 12.36 12.36 0 0 0-.617-1.23A.077.077 0 0 0 8.562 3c-1.714.29-3.354.8-4.885 1.491a.07.07 0 0 0-.032.027C.533 9.093-.32 13.555.099 17.961a.08.08 0 0 0 .031.055 20.03 20.03 0 0 0 5.993 2.98.078.078 0 0 0 .084-.026c.462-.62.874-1.275 1.226-1.963.021-.04.001-.088-.041-.104a13.201 13.201 0 0 1-1.872-.878.075.075 0 0 1-.008-.125c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.764 8.18 1.764 12.061 0a.075.075 0 0 1 .079.009c.12.098.245.195.372.288a.075.075 0 0 1-.006.125c-.598.344-1.22.635-1.873.877a.075.075 0 0 0-.041.105c.36.687.772 1.341 1.225 1.962a.077.077 0 0 0 .084.028 19.963 19.963 0 0 0 6.002-2.981.076.076 0 0 0 .032-.054c.5-5.094-.838-9.52-3.549-13.442a.06.06 0 0 0-.031-.028z" fill="currentColor"/>`,
@@ -77,573 +72,549 @@ const loadGFont = (key: string) => {
   document.head.appendChild(link);
 };
 
-// ── Design System & Theme Engine ─────────────────────────────────────────────
-class DesignSystem {
-  static inject(container: HTMLElement) {
-    if (document.getElementById("ss-design-system")) return;
+// Book color families for the word-card preview: one representative book each.
+const COLOR_FAMILIES = [
+  { id: 1, label: "Law" }, { id: 9, label: "History" }, { id: 19, label: "Poetry" },
+  { id: 23, label: "Prophets" }, { id: 41, label: "Gospels" }, { id: 45, label: "Paul" },
+  { id: 54, label: "Pastorals" }, { id: 62, label: "General" }, { id: 66, label: "Revelation" },
+];
+const SAMPLE_WORDS = [
+  { english: "world", original: "κόσμον", translit: "kosmon", strongs: "G2889", morph: "N-ASM" },
+  { english: "gospel", original: "εὐαγγέλιον", translit: "euangelion", strongs: "G2098", morph: "N-ASN" },
+  { english: "all", original: "πάσῃ", translit: "pasē", strongs: "G3956", morph: "A-DSF" },
+];
+const SAMPLE_PASSAGE = [
+  { v: 1, text: "There is therefore now no condemnation to them which are in Christ Jesus, who walk not after the flesh, but after the Spirit.", notes: ["Study/Grace.md"] },
+  { v: 2, text: "For the law of the Spirit of life in Christ Jesus hath made me free from the law of sin and death.", notes: [] },
+  { v: 3, text: "For what the law could not do, in that it was weak through the flesh, God sending his own Son in the likeness of sinful flesh, and for sin, condemned sin in the flesh:", notes: ["Study/Grace.md", "Sermons/Romans 8.md"] },
+];
 
-    const style = document.createElement("style");
-    style.id = "ss-design-system";
-    style.textContent = `
-      .ss-settings-wrap {
-        --ss-accent: #534AB7;
-        --ss-accent-light: #EEEDFE;
-        --ss-accent-glow: rgba(83, 74, 183, 0.4);
-        --ss-glass-bg: var(--background-secondary-alt);
-        --ss-glass-border: var(--background-modifier-border);
-        --ss-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-        --ss-ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-        display: flex; gap: 24px; height: 100%; max-width: 1000px; margin: 0 auto; padding: 12px 0;
-      }
-      .theme-dark .ss-settings-wrap {
-        --ss-glass-bg: rgba(30, 30, 30, 0.4);
-        --ss-glass-border: rgba(255, 255, 255, 0.08);
-      }
-      
-      /* Invert text color logic depending on system theme */
-      .theme-dark .ss-text-inverted { color: #1a1a1a !important; }
-      .theme-light .ss-text-inverted { color: #f0f0f0 !important; }
-      .ss-text-auto { color: var(--text-normal) !important; }
+// ── Styles ───────────────────────────────────────────────────────────────────
+// One fluid column: nothing has a fixed width, rows wrap, so the page lays out at any window size.
+const STYLE_ID = "ss-settings-v2";
+const STYLES = `
+.ss-set { --ss-a: #8c5cff; --ss-b: #ff4fc8; --ss-c: #35d6ff; max-width: 820px; margin: 0 auto; padding-bottom: 40px; }
+.ss-set * { box-sizing: border-box; }
+.ss-set-head { display: flex; align-items: center; gap: 16px; padding: 4px 0 14px; flex-wrap: wrap; }
+.ss-set-head-icon svg { width: 60px !important; height: 60px !important; }
+.ss-set-title { font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1;
+  background: linear-gradient(100deg, var(--ss-c), var(--ss-a) 45%, var(--ss-b)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.ss-set-sub { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+.ss-set-head-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.ss-set-nav { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 0;
+  background: var(--background-primary); border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 18px; }
+.ss-set-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 7px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--background-modifier-border); background: var(--background-secondary); color: var(--text-normal); cursor: pointer; box-shadow: none; height: auto; }
+.ss-set-chip:hover { border-color: var(--ss-a); }
+.ss-set-chip svg { width: 18px !important; height: 18px !important; }
+.ss-sec { scroll-margin-top: 64px; border: 1px solid var(--background-modifier-border); border-radius: 14px; padding: 18px 20px 8px; margin-bottom: 18px;
+  background: var(--background-secondary); position: relative; overflow: hidden; }
+.ss-sec::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--ss-c), var(--ss-a), var(--ss-b)); opacity: .85; }
+.ss-sec.ss-quiet::before { opacity: .25; }
+.ss-sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.ss-sec-head svg { width: 34px !important; height: 34px !important; }
+.ss-sec-title { font-size: 16px; font-weight: 750; }
+.ss-sec-desc { font-size: 12px; color: var(--text-muted); }
+.ss-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 12px 0; border-top: 1px solid var(--background-modifier-border); }
+.ss-sec-head + .ss-row, .ss-preview + .ss-row { border-top: none; }
+.ss-row-info { flex: 1 1 240px; min-width: 0; }
+.ss-row-name { font-size: 14px; font-weight: 600; }
+.ss-row-desc { font-size: 12px; color: var(--text-muted); line-height: 1.45; margin-top: 2px; }
+.ss-row-ctl { flex: 0 1 auto; margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
+.ss-row.ss-stack .ss-row-ctl { flex-basis: 100%; margin-left: 0; justify-content: flex-start; }
+.ss-seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 10px; background: var(--background-primary); border: 1px solid var(--background-modifier-border); }
+.ss-seg button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 7px; font-size: 12.5px; font-weight: 600; height: auto;
+  background: transparent; border: none; box-shadow: none; color: var(--text-muted); cursor: pointer; }
+.ss-seg button svg { width: 18px !important; height: 18px !important; }
+.ss-seg button:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.ss-seg button.on { color: #fff; background: linear-gradient(110deg, var(--ss-a), var(--ss-b)); box-shadow: 0 2px 10px rgba(140, 92, 255, .35); }
+.ss-switch { position: relative; width: 44px; height: 24px; flex: none; }
+.ss-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.ss-switch span { position: absolute; inset: 0; border-radius: 24px; background: var(--background-modifier-border); transition: background .2s; cursor: pointer; }
+.ss-switch span::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: transform .25s cubic-bezier(.34,1.56,.64,1); box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.ss-switch input:checked + span { background: linear-gradient(110deg, var(--ss-a), var(--ss-b)); }
+.ss-switch input:checked + span::before { transform: translateX(20px); }
+.ss-range { display: inline-flex; align-items: center; gap: 10px; }
+.ss-range input { width: 160px; accent-color: var(--ss-a); }
+.ss-range output { min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.ss-set select, .ss-set .ss-text { background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 7px; padding: 5px 10px; font-size: 13px; color: var(--text-normal); }
+.ss-set .ss-text { width: 100%; font-family: var(--font-monospace); }
+.ss-set textarea.ss-text { min-height: 70px; resize: vertical; }
+.ss-btn2 { padding: 6px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 650; cursor: pointer; height: auto; border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal); box-shadow: none; }
+.ss-btn2:hover { border-color: var(--ss-a); }
+.ss-btn2.ss-go { color: #fff; border: none; background: linear-gradient(110deg, var(--ss-a), var(--ss-b)); box-shadow: 0 3px 12px rgba(255, 79, 200, .3); }
+.ss-preview { border-radius: 12px; border: 1px solid var(--background-modifier-border); background: var(--background-primary); padding: 14px 16px; margin: 8px 0 6px; }
+.ss-pv-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ss-pv-book { font-family: Georgia, serif; letter-spacing: .14em; font-size: 13px; font-weight: 700; }
+.ss-pv-pill { margin-left: auto; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 5px; }
+.ss-pv-text { line-height: 1.9; }
+.ss-pv-text sup { font-size: .62em; font-weight: 700; margin: 0 2px 0 6px; }
+.ss-pv-hl { border-radius: 4px; padding: 1px 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.ss-pv-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 11px; color: var(--text-muted); }
+.ss-pv-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.ss-fonts { display: flex; flex-wrap: wrap; gap: 6px; }
+.ss-fonts button { padding: 6px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; height: auto; box-shadow: none; border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal); }
+.ss-fonts button.on { border-color: var(--ss-a); box-shadow: 0 0 0 2px rgba(140, 92, 255, .35); }
+.ss-words { display: flex; flex-wrap: wrap; gap: 6px; }
+.ss-wc { text-align: center; border-radius: 8px; padding: 7px 10px; min-width: 76px; border: 1px solid var(--background-modifier-border); background: var(--background-secondary); line-height: 1.3; }
+.ss-wc-e { font-size: 11px; color: var(--text-normal); }
+.ss-wc-o { font-size: 16px; font-style: italic; }
+.ss-wc-t { font-size: 9.5px; color: var(--text-muted); }
+.ss-wc-s, .ss-wc-m { font-size: 9px; font-weight: 700; }
+.ss-def { margin-top: 10px; border-radius: 9px; padding: 9px 12px; font-size: 12px; }
+.ss-def-h { font-weight: 800; font-size: 11px; margin-bottom: 4px; }
+.ss-def-m { margin-top: 6px; padding: 7px 9px; border-radius: 7px; background: rgba(255,255,255,.6); }
+.ss-def-m b { display: block; font-size: 10px; font-variant: all-small-caps; letter-spacing: .04em; }
+.ss-def-m span { font-style: italic; color: #2a2838; }
+.ss-checks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.ss-checks label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.ss-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.ss-brand { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border: none; border-radius: 20px; color: #fff; cursor: pointer; font-size: 12px; font-weight: 700; height: auto; box-shadow: none; }
+.ss-brand:hover { filter: brightness(1.1); }
+.ss-label { font-size: 10px; font-weight: 800; letter-spacing: .1em; color: var(--text-muted); margin: 10px 0 6px; }
+`;
 
-      @media (max-width: 768px) {
-        .ss-settings-wrap { flex-direction: column; gap: 16px; }
-        .ss-sidebar { width: 100% !important; flex-direction: row !important; overflow-x: auto; padding-bottom: 8px; }
-        .ss-nav-pill { white-space: nowrap; }
-      }
-      .ss-sidebar { display: flex; flex-direction: column; gap: 6px; width: 220px; flex-shrink: 0; }
-      .ss-nav-pill {
-        padding: 10px 16px; border-radius: 8px; color: var(--text-muted); font-weight: 600; font-size: 13px;
-        cursor: pointer; transition: all 0.2s var(--ss-ease-smooth); border: 1px solid transparent; background: transparent; text-align: left;
-      }
-      .ss-nav-pill:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
-      .ss-nav-pill.active { background: var(--ss-accent-light); color: var(--ss-accent); border-color: var(--ss-accent-glow); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-      .theme-dark .ss-nav-pill.active { background: rgba(83, 74, 183, 0.15); }
-      .ss-content-pane { flex: 1; overflow-y: auto; padding-right: 12px; padding-bottom: 40px; }
-      .ss-glass-card {
-        background: var(--ss-glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-        border: 1px solid var(--ss-glass-border); border-radius: 12px; padding: 20px; margin-bottom: 24px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04); animation: ss-fade-up 0.4s var(--ss-ease-smooth) both;
-      }
-      .ss-card-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ss-accent); margin-bottom: 16px; }
-      .ss-setting-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--background-modifier-border); }
-      .ss-setting-row:last-child { border-bottom: none; padding-bottom: 0; }
-      .ss-setting-row.ss-vertical { flex-direction: column; align-items: flex-start; gap: 12px; }
-      .ss-setting-info { display: flex; flex-direction: column; gap: 4px; padding-right: 20px; flex: 1; }
-      .ss-setting-name { font-size: 14px; font-weight: 600; color: var(--text-normal); }
-      .ss-setting-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
-      .ss-setting-control { flex-shrink: 0; }
-      
-      /* Slider */
-      .ss-slider { -webkit-appearance: none; width: 120px; height: 4px; background: var(--background-modifier-border); border-radius: 2px; outline: none; }
-      .ss-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--ss-accent); cursor: pointer; box-shadow: 0 2px 6px var(--ss-accent-glow); transition: transform 0.2s var(--ss-ease-spring); }
-      .ss-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
-      
-      /* Toggle */
-      .ss-toggle { position: relative; display: inline-block; width: 44px; height: 24px; }
-      .ss-toggle input { opacity: 0; width: 0; height: 0; }
-      .ss-toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--background-modifier-border); transition: .3s; border-radius: 24px; }
-      .ss-toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s var(--ss-ease-spring); border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-      .ss-toggle input:checked + .ss-toggle-slider { background-color: var(--ss-accent); }
-      .ss-toggle input:checked + .ss-toggle-slider:before { transform: translateX(20px); }
-      .ss-toggle input:disabled + .ss-toggle-slider { opacity: 0.5; cursor: not-allowed; }
-      
-      /* Dropdown */
-      .ss-select { background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 6px; padding: 6px 12px; color: var(--text-normal); font-size: 13px; cursor: pointer; outline: none; }
-      .ss-select:focus { border-color: var(--ss-accent); box-shadow: 0 0 0 2px var(--ss-accent-glow); }
-      
-      /* Text Input / Area */
-      .ss-input, .ss-textarea { width: 100%; background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 6px; padding: 8px 12px; color: var(--text-normal); font-size: 13px; outline: none; transition: border-color 0.2s; font-family: var(--font-monospace); }
-      .ss-input:focus, .ss-textarea:focus { border-color: var(--ss-accent); box-shadow: 0 0 0 2px var(--ss-accent-glow); }
-      
-      /* Button */
-      .ss-btn { background: var(--background-secondary); border: 1px solid var(--background-modifier-border); border-radius: 6px; padding: 6px 14px; color: var(--text-normal); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s var(--ss-ease-smooth); }
-      .ss-btn:hover { background: var(--background-modifier-hover); }
-      .ss-btn.ss-primary { background: var(--ss-accent); color: white; border-color: var(--ss-accent); }
-      .ss-btn.ss-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px var(--ss-accent-glow); }
-      
-      /* Brand Pill */
-      .ss-brand-pill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: none; border-radius: 20px; color: white; cursor: pointer; font-size: 12px; font-weight: 700; white-space: nowrap; transition: transform 0.15s, opacity 0.15s; }
-      .ss-brand-pill:hover { transform: scale(1.05); opacity: 0.92; }
-
-      @keyframes ss-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    `;
-    document.head.appendChild(style);
-  }
-}
-
-// ── UI Factory ───────────────────────────────────────────────────────────────
-class UIFactory {
-  static createCard(parent: HTMLElement, title: string, iconSvg?: string): HTMLElement {
-    const card = parent.createEl("div", { cls: "ss-glass-card" });
-    if (title || iconSvg) {
-      const titleEl = card.createEl("div", { cls: "ss-card-title" });
-      if (iconSvg) {
-        titleEl.style.display = "flex";
-        titleEl.style.alignItems = "center";
-        titleEl.style.gap = "8px";
-        titleEl.innerHTML = `${iconSvg} <span>${title}</span>`;
-      } else {
-        titleEl.textContent = title;
-      }
-    }
-    return card;
-  }
-
-  static createRow(card: HTMLElement, name: string, desc: string, vertical = false): HTMLElement {
-    const row = card.createEl("div", { cls: `ss-setting-row ${vertical ? 'ss-vertical' : ''}` });
-    const info = row.createEl("div", { cls: "ss-setting-info" });
-    info.createEl("div", { cls: "ss-setting-name", text: name });
-    if (desc) info.createEl("div", { cls: "ss-setting-desc", text: desc });
-    return row.createEl("div", { cls: "ss-setting-control" });
-  }
-
-  static buildSlider(card: HTMLElement, name: string, desc: string, min: number, max: number, value: number, onInput: (val: number) => void, onChange: (val: number) => void) {
-    const control = this.createRow(card, name, desc);
-    const slider = control.createEl("input", { cls: "ss-slider" });
-    slider.type = "range"; slider.min = String(min); slider.max = String(max); slider.value = String(value);
-    slider.addEventListener("input", (e) => onInput(Number((e.target as HTMLInputElement).value)));
-    slider.addEventListener("change", (e) => onChange(Number((e.target as HTMLInputElement).value)));
-  }
-
-  static buildToggle(card: HTMLElement, name: string, desc: string, value: boolean, onChange: (val: boolean) => void, disabled = false) {
-    const control = this.createRow(card, name, desc);
-    const label = control.createEl("label", { cls: "ss-toggle" });
-    const input = label.createEl("input");
-    input.type = "checkbox"; input.checked = value; input.disabled = disabled;
-    label.createEl("span", { cls: "ss-toggle-slider" });
-    input.addEventListener("change", () => onChange(input.checked));
-  }
-
-  static buildDropdown(card: HTMLElement, name: string, desc: string, options: Record<string, string>, value: string, onChange: (val: string) => void) {
-    const control = this.createRow(card, name, desc);
-    const select = control.createEl("select", { cls: "ss-select" });
-    for (const [key, label] of Object.entries(options)) {
-      const opt = select.createEl("option", { text: label });
-      opt.value = key;
-    }
-    select.value = value;
-    select.addEventListener("change", () => onChange(select.value));
-  }
-
-  static buildText(card: HTMLElement, name: string, desc: string, value: string, onChange: (val: string) => void) {
-    const control = this.createRow(card, name, desc, true);
-    control.style.width = "100%";
-    const input = control.createEl("input", { cls: "ss-input" });
-    input.type = "text"; input.value = value;
-    input.addEventListener("change", () => onChange(input.value));
-  }
-
-  static buildTextArea(card: HTMLElement, name: string, desc: string, value: string, rows: number, onChange: (val: string) => void) {
-    const control = this.createRow(card, name, desc, true);
-    control.style.width = "100%";
-    const textarea = control.createEl("textarea", { cls: "ss-textarea" });
-    textarea.rows = rows; textarea.value = value;
-    textarea.addEventListener("change", () => onChange(textarea.value));
-  }
-
-  static buildButton(card: HTMLElement, name: string, desc: string, btnText: string, onClick: () => void, primary = false) {
-    const control = this.createRow(card, name, desc);
-    const btn = control.createEl("button", { cls: `ss-btn ${primary ? 'ss-primary' : ''}`, text: btnText });
-    btn.addEventListener("click", onClick);
-  }
-
-  static buildBrandPill(parent: HTMLElement, label: string, bgColor: string, iconSvg: string, onClick: () => void) {
-    const btn = parent.createEl("button", { cls: "ss-brand-pill" });
-    btn.style.background = bgColor;
-    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" style="flex-shrink:0;">${iconSvg}</svg>${label}`;
-    btn.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
-  }
-}
-
-// ── Preview Helpers ──────────────────────────────────────────────────────────
-function buildWordCardPreview(container: HTMLElement, showEnglish: boolean, showTranslit: boolean, showStrongs: boolean): void {
-  container.empty();
-  container.classList.add("ss-preview-wrap");
-  const sample = [
-    { english: "love", original: "ἀγάπη", translit: "agapē", strongs: "G26" },
-    { english: "God", original: "θεός", translit: "theos", strongs: "G2316" },
-  ];
-  for (const w of sample) {
-    const card = container.createEl("div", { cls: "ss-preview-word-card" });
-    if (showEnglish) {
-      const el = card.createEl("div", { cls: "ss-preview-english", text: w.english });
-    }
-    const orig = card.createEl("div", { cls: "ss-preview-original", text: w.original });
-    orig.style.color = PM;
-    if (showTranslit) {
-      const el = card.createEl("div", { cls: "ss-preview-translit", text: w.translit });
-    }
-    if (showStrongs) {
-      const el = card.createEl("div", { cls: "ss-preview-strongs", text: w.strongs });
-      el.style.color = PM;
-    }
-  }
-}
+type Opt<T extends string> = { value: T; label: string; icon?: string };
 
 // ── Main Settings Tab ────────────────────────────────────────────────────────
+// Ordered by how often people reach for things: how verses show and look first,
+// set-and-forget setup (folders to ignore, cache) last.
 export class ScriptureScribeSettingTab extends PluginSettingTab {
   plugin: ScriptureScribePlugin;
-  private contentPane!: HTMLElement;
-  private navPills: Map<string, HTMLElement> = new Map();
 
   constructor(app: App, plugin: ScriptureScribePlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
 
+  private get s() { return this.plugin.settings; }
+  private async save(): Promise<void> { await this.plugin.saveSettings(); }
+
   display(): void {
+    document.getElementById("ss-design-system")?.remove(); // pre-1.0 settings stylesheet
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.head.createEl("style", { attr: { id: STYLE_ID } });
+      style.textContent = STYLES;
+    }
     const { containerEl } = this;
     containerEl.empty();
-    DesignSystem.inject(containerEl);
+    const root = containerEl.createDiv({ cls: "ss-set" });
 
-    // Build Hero
-    const hero = containerEl.createEl("div", { cls: "ss-hero" });
-    const icon = hero.createEl("div", { cls: "ss-hero-icon" });
-    icon.innerHTML = getIcon("Open-Bible-app-icon", 120);
-    const text = hero.createEl("div", { cls: "ss-hero-text" });
-    text.createEl("div", { text: "ScriptureScribe", attr: { style: "font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px;" } });
-    text.createEl("div", { text: "Cinematic study environment.", attr: { style: "color: var(--text-muted); font-size: 16px;" } });
+    const head = root.createDiv({ cls: "ss-set-head" });
+    head.createDiv({ cls: "ss-set-head-icon" }).innerHTML = getIcon("Open-Bible-app-icon", 60);
+    const titles = head.createDiv();
+    titles.createDiv({ cls: "ss-set-title", text: "ScriptureScribe" });
+    titles.createDiv({ cls: "ss-set-sub", text: `v${this.plugin.manifest.version} · a second brain for your Bible` });
+    const actions = head.createDiv({ cls: "ss-set-head-actions" });
+    this.button(actions, "Open Reading Panel", () => (this.plugin as any).activatePanel?.(), true);
 
-    // Layout
-    const wrap = containerEl.createEl("div", { cls: "ss-settings-wrap" });
-    const sidebar = wrap.createEl("div", { cls: "ss-sidebar" });
-    this.contentPane = wrap.createEl("div", { cls: "ss-content-pane" });
-
-    // Tabs
-    const tabs = [
-      { id: "general", label: "General & Engine", icon: getIcon("open-scroll", 27) },
-      { id: "appearance", label: "Reader Appearance", icon: getIcon("verticle-page", 27) },
-      { id: "embeds", label: "Embeds & Notes", icon: getIcon("embed-settings-tablets", 27) },
-      { id: "scholar", label: "Scholar & Intelligence", icon: getIcon("Lamp-burning-suppoert", 27) },
-      { id: "community", label: "Community & Support", icon: getIcon("dove-send", 27) }
+    const nav = root.createDiv({ cls: "ss-set-nav" });
+    const sections: Array<[string, string, string, () => void]> = [
+      ["Hover", "verticle-page", "Hover & cards", () => this.renderHover(root)],
+      ["Look", "Lamp-burning-suppoert", "Look", () => this.renderLook(root)],
+      ["Cards", "open-scroll", "Card Mode", () => this.renderCards(root)],
+      ["Study", "interliniar", "Word study", () => this.renderStudy(root)],
+      ["Writing", "embed-text-white-qwill", "Writing & embeds", () => this.renderWriting(root)],
+      ["Setup", "shepards-hook", "Setup", () => this.renderSetup(root)],
+      ["Support", "olive-branch-give", "Support", () => this.renderSupport(root)],
     ];
-
-    tabs.forEach(tab => {
-      const pill = sidebar.createEl("button", { cls: "ss-nav-pill" });
-      pill.innerHTML = `<div style="display:flex;align-items:center;gap:8px;">${tab.icon} <span>${tab.label}</span></div>`;
-      this.navPills.set(tab.id, pill);
-      pill.addEventListener("click", () => this.switchTab(tab.id));
-    });
-
-    this.switchTab("general");
-  }
-
-  private switchTab(tabId: string) {
-    this.navPills.forEach((pill, id) => pill.classList.toggle("active", id === tabId));
-    this.contentPane.empty();
-
-    switch (tabId) {
-      case "general": this.renderGeneralTab(); break;
-      case "appearance": this.renderAppearanceTab(); break;
-      case "embeds": this.renderEmbedsTab(); break;
-      case "scholar": this.renderScholarTab(); break;
-      case "community": this.renderCommunityTab(); break;
+    for (const [label, icon, , render] of sections) {
+      const chip = nav.createEl("button", { cls: "ss-set-chip" });
+      chip.innerHTML = getIcon(icon, 18);
+      chip.createSpan({ text: label });
+      chip.addEventListener("click", () => root.querySelector(`[data-sec="${label}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      render();
     }
   }
 
-  // ── Tab Renderers ──────────────────────────────────────────────────────────
+  // ── Building blocks ─────────────────────────────────────────────────────────
 
-  private renderGeneralTab() {
-    // Translation Card
-    const trCard = UIFactory.createCard(this.contentPane, "Translation Settings", getIcon("hand-holding-bible-version", 36));
-    const verOptions: Record<string, string> = {};
-    Object.keys(VERSION_CODES).forEach(v => verOptions[v] = v);
-    UIFactory.buildDropdown(trCard, "Primary Translation", "Default version shown in tooltips and reading panel.", verOptions, this.plugin.settings.primaryTranslation, async (val) => { this.plugin.settings.primaryTranslation = val; await this.plugin.saveSettings(); });
-    UIFactory.buildToggle(trCard, "Offline Fallback", "Show local KJV text if the API is unreachable.", this.plugin.settings.offlineFallback, async (val) => { this.plugin.settings.offlineFallback = val; await this.plugin.saveSettings(); });
-    UIFactory.buildText(trCard, "Favorite Translations", "Comma-separated versions in the version dropdown (e.g. KJV,ESV,NIV).", this.plugin.settings.favoriteTranslations.join(","), async (val) => { this.plugin.settings.favoriteTranslations = val.split(",").map(s => s.trim()).filter(Boolean); await this.plugin.saveSettings(); });
-
-    // Vault Scan Card
-    const vsCard = UIFactory.createCard(this.contentPane, "Vault Scan Engine", getIcon("Search-vault", 36));
-    UIFactory.buildToggle(vsCard, "Use Global Exclusions", "Skip standard excluded folders when scanning notes.", this.plugin.settings.vaultScan.useGlobalExclusions, async (val) => { this.plugin.settings.vaultScan.useGlobalExclusions = val; await this.plugin.saveSettings(); });
-    UIFactory.buildTextArea(vsCard, "Additional Scan Exclusions", "Extra folders to skip only during vault note scan (one path per line).", this.plugin.settings.vaultScan.additionalExclusions.join("\n"), 3, async (val) => { this.plugin.settings.vaultScan.additionalExclusions = val.split("\n").map(s => s.trim()).filter(Boolean); await this.plugin.saveSettings(); });
-    UIFactory.buildButton(vsCard, "Force Re-scan", "Force a fresh scan of all notes immediately.", "Scan Vault Now", () => this.plugin.startVaultScan(true), true);
-
-    // Tools & Cache Card
-    const cacheCard = UIFactory.createCard(this.contentPane, "Cache & Tools", getIcon("shepards-hook", 36));
-    UIFactory.buildTextArea(cacheCard, "Excluded Folders", "ScriptureScribe will not activate in these folders.", this.plugin.settings.excludedFolders.join("\n"), 3, async (val) => { this.plugin.settings.excludedFolders = val.split("\n").map(s => s.trim()).filter(Boolean); await this.plugin.saveSettings(); });
-    UIFactory.buildButton(cacheCard, "Clear Verse Cache", "Force all scripture data to be re-fetched.", "Clear Cache", () => new Notice("ScriptureScribe: Reload Obsidian to fully clear the cache."));
+  private section(root: HTMLElement, key: string, icon: string, title: string, desc: string, quiet = false): HTMLElement {
+    const sec = root.createDiv({ cls: `ss-sec${quiet ? " ss-quiet" : ""}`, attr: { "data-sec": key } });
+    const head = sec.createDiv({ cls: "ss-sec-head" });
+    head.createDiv().innerHTML = getIcon(icon, 34);
+    const t = head.createDiv();
+    t.createDiv({ cls: "ss-sec-title", text: title });
+    if (desc) t.createDiv({ cls: "ss-sec-desc", text: desc });
+    return sec;
   }
 
-  private renderCardModeCard() {
+  private row(parent: HTMLElement, name: string, desc: string, stack = false): HTMLElement {
+    const row = parent.createDiv({ cls: `ss-row${stack ? " ss-stack" : ""}` });
+    const info = row.createDiv({ cls: "ss-row-info" });
+    info.createDiv({ cls: "ss-row-name", text: name });
+    if (desc) info.createDiv({ cls: "ss-row-desc", text: desc });
+    return row.createDiv({ cls: "ss-row-ctl" });
+  }
+
+  private segmented<T extends string>(parent: HTMLElement, opts: Opt<T>[], value: T, onChange: (v: T) => void | Promise<void>): void {
+    const seg = parent.createDiv({ cls: "ss-seg" });
+    for (const o of opts) {
+      const b = seg.createEl("button", { cls: o.value === value ? "on" : "" });
+      if (o.icon) b.innerHTML = getIcon(o.icon, 18);
+      b.createSpan({ text: o.label });
+      b.addEventListener("click", async () => {
+        seg.querySelectorAll("button").forEach(x => x.toggleClass("on", x === b));
+        await onChange(o.value);
+      });
+    }
+  }
+
+  private toggle(parent: HTMLElement, value: boolean, onChange: (v: boolean) => void | Promise<void>): void {
+    const label = parent.createEl("label", { cls: "ss-switch" });
+    const input = label.createEl("input", { type: "checkbox" });
+    input.checked = value;
+    label.createSpan();
+    input.addEventListener("change", () => onChange(input.checked));
+  }
+
+  private range(parent: HTMLElement, min: number, max: number, step: number, value: number, unit: string,
+                onInput: (v: number) => void, onChange: (v: number) => void | Promise<void>): void {
+    const wrap = parent.createDiv({ cls: "ss-range" });
+    const input = wrap.createEl("input", { type: "range" });
+    input.min = String(min); input.max = String(max); input.step = String(step); input.value = String(value);
+    const out = wrap.createEl("output", { text: `${value}${unit}` });
+    input.addEventListener("input", () => { out.textContent = `${input.value}${unit}`; onInput(Number(input.value)); });
+    input.addEventListener("change", () => onChange(Number(input.value)));
+  }
+
+  private select(parent: HTMLElement, options: Record<string, string>, value: string, onChange: (v: string) => void | Promise<void>): void {
+    const sel = parent.createEl("select");
+    for (const [k, v] of Object.entries(options)) sel.createEl("option", { text: v, value: k });
+    sel.value = value;
+    sel.addEventListener("change", () => onChange(sel.value));
+  }
+
+  private button(parent: HTMLElement, text: string, onClick: () => void, primary = false): HTMLButtonElement {
+    const b = parent.createEl("button", { cls: `ss-btn2${primary ? " ss-go" : ""}`, text });
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  private textInput(parent: HTMLElement, value: string, lines: number, onChange: (v: string) => void | Promise<void>): void {
+    const el = lines > 1 ? parent.createEl("textarea", { cls: "ss-text" }) : parent.createEl("input", { cls: "ss-text", type: "text" });
+    if (el instanceof HTMLTextAreaElement) el.rows = lines;
+    el.value = value;
+    el.addEventListener("change", () => onChange(el.value));
+  }
+
+  private refreshPalettes(): void {
+    const { workspace } = this.plugin.app;
+    workspace.getLeavesOfType("scripture-scribe-panel").forEach(leaf => {
+      const view = leaf.view as any;
+      view?.refreshPalette?.();
+      view?.bibleModeView?.refreshPalette?.();
+    });
+    (this.plugin as any).tooltip?.refreshPalette?.();
+  }
+
+  // ── 1. Hover & cards: what happens when you point at a verse ─────────────────
+
+  private renderHover(root: HTMLElement): void {
+    const sec = this.section(root, "Hover", "verticle-page", "When you hover a verse", "The switches you flip most: tooltip or full-screen card, and where the verse opens.");
+    let c = this.row(sec, "Show it as", "A tooltip beside the text, or a full-screen card for recording and presenting.");
+    this.segmented(c, [
+      { value: "tooltip", label: "Tooltip", icon: "verticle-page" },
+      { value: "card", label: "Full-screen card", icon: "open-scroll" },
+    ], this.s.display.cardMode ? "card" : "tooltip", async v => { await this.plugin.tooltip.setCardMode(v === "card"); });
+
+    c = this.row(sec, "Also open in the Reading Panel", "Follow along in the sidebar as you hover.");
+    this.segmented(c, [
+      { value: "tooltip", label: "Tooltip only" }, { value: "both", label: "Tooltip + panel" }, { value: "panel", label: "Panel only" },
+    ], this.s.display.referenceClickBehavior, async v => { this.s.display.referenceClickBehavior = v; await this.save(); });
+
+    c = this.row(sec, "Hover delay", "How long to rest on a reference before it opens.");
+    this.range(c, 100, 1000, 50, this.s.hoverSettings.triggerDelayMs, " ms", () => {}, async v => { this.s.hoverSettings.triggerDelayMs = v; await this.save(); });
+
+    c = this.row(sec, "Tooltip style", "Auto uses a bottom sheet on touch screens.");
+    this.segmented(c, [
+      { value: "auto", label: "Auto" }, { value: "hover", label: "Hover" }, { value: "bottom-sheet", label: "Bottom sheet" },
+    ], this.s.display.tooltipStyle, async v => { this.s.display.tooltipStyle = v; await this.save(); });
+
+    c = this.row(sec, "Translation", "The version shown first. KJV and LXX are built in and work offline.");
+    const versions: Record<string, string> = {};
+    Object.keys(VERSION_CODES).forEach(v => versions[v] = v);
+    this.select(c, versions, this.s.primaryTranslation, async v => { this.s.primaryTranslation = v; await this.save(); });
+  }
+
+  // ── 2. Look: fonts, highlights and book colors, with a live preview ─────────
+
+  private renderLook(root: HTMLElement): void {
+    const sec = this.section(root, "Look", "Lamp-burning-suppoert", "Look", "Everything here updates the preview as you change it.");
+    const preview = sec.createDiv({ cls: "ss-preview" });
+    const head = preview.createDiv({ cls: "ss-pv-head" });
+    const book = head.createSpan({ cls: "ss-pv-book", text: "ROMANS · 8" });
+    const pill = head.createSpan({ cls: "ss-pv-pill", text: "KJV ▾" });
+    const text = preview.createDiv({ cls: "ss-pv-text" });
+    const legend = preview.createDiv({ cls: "ss-pv-legend" });
+    legend.createSpan({ text: "Highlighted verses are cited in your notes; each note has its own color, and a verse cited by several blends them." });
+
+    const draw = (opacity = this.s.vaultHighlight.opacity, size = this.s.bibleText.fontSize, fontKey = this.s.bibleText.fontFamily) => {
+      const pal = contrastSafePalette(getBookPalette(45, this.s.display.useBookColors !== false));
+      book.style.color = pal.base;
+      pill.style.background = pal.base;
+      pill.style.color = pal.textOnVivid;
+      loadGFont(fontKey);
+      text.style.fontFamily = FONT_FLAT_LIST.find(f => f.key === fontKey)?.css ?? "inherit";
+      text.style.fontSize = `${size}px`;
+      setVaultHighlightSettings(opacity, this.s.vaultHighlight.textColor);
+      text.empty();
+      for (const verse of SAMPLE_PASSAGE) {
+        const sup = text.createEl("sup", { text: String(verse.v) });
+        sup.style.color = pal.base;
+        const span = text.createSpan({ text: verse.text });
+        if (verse.notes.length) {
+          span.addClass("ss-pv-hl");
+          span.style.background = buildVerseHighlightStyle(verse.notes).background;
+          span.style.color = getVaultHighlightTextColor();
+        }
+        text.appendText(" ");
+      }
+    };
+    draw();
+
+    let c = this.row(sec, "Bible font", "", true);
+    const fonts = c.createDiv({ cls: "ss-fonts" });
+    for (const font of FONT_FLAT_LIST) {
+      loadGFont(font.key);
+      const b = fonts.createEl("button", { text: font.display, cls: font.key === this.s.bibleText.fontFamily ? "on" : "" });
+      b.style.fontFamily = font.css;
+      b.addEventListener("click", async () => {
+        fonts.querySelectorAll("button").forEach(x => x.toggleClass("on", x === b));
+        this.s.bibleText.fontFamily = font.key;
+        draw();
+        await this.save();
+      });
+    }
+
+    c = this.row(sec, "Text size", "Bible mode and the reading panel.");
+    this.range(c, 11, 26, 1, this.s.bibleText.fontSize, " px", v => draw(undefined, v), async v => { this.s.bibleText.fontSize = v; await this.save(); });
+
+    c = this.row(sec, "Highlight strength", "How vivid the note highlights are in Bible mode.");
+    this.range(c, 10, 100, 1, this.s.vaultHighlight.opacity, "%", v => draw(v), async v => { this.s.vaultHighlight.opacity = v; draw(); await this.save(); });
+
+    c = this.row(sec, "Text on highlights", "Auto keeps dark text on the bright highlight colors.");
+    const textColor = (["auto", "dark", "light"] as const).includes(this.s.vaultHighlight.textColor) ? this.s.vaultHighlight.textColor : "auto";
+    this.segmented(c, [{ value: "auto", label: "Auto" }, { value: "dark", label: "Dark" }, { value: "light", label: "Light" }], textColor,
+      async v => { this.s.vaultHighlight.textColor = v; draw(); await this.save(); });
+
+    c = this.row(sec, "Book colors", "Each part of the Bible gets its own accent color. Off uses purple everywhere.");
+    this.toggle(c, this.s.display.useBookColors !== false, async v => {
+      this.s.display.useBookColors = v;
+      await this.save();
+      this.refreshPalettes();
+      draw();
+      this.redrawWords();
+    });
+  }
+
+  // ── 3. Card Mode ─────────────────────────────────────────────────────────────
+
+  private renderCards(root: HTMLElement): void {
     const plugin = this.plugin;
     const pluginDir = plugin.manifest.dir!;
-    const adapter = plugin.app.vault.adapter;
-    const card = UIFactory.createCard(this.contentPane, "Verse Card Mode (for video)", getIcon("open-scroll", 36));
+    const sec = this.section(root, "Cards", "open-scroll", "Card Mode", "Full-screen verse cards for preaching, teaching and recording. Turn it on under “When you hover a verse”, or with the Toggle Card Mode command.");
 
-    UIFactory.buildToggle(
-      card,
-      "🎬 Full-screen verse cards",
-      "Hovering a reference fades in a full-screen card instead of the tooltip, and fades out when you move away. Also available as a command: “Toggle Card Mode” (assign it a hotkey).",
-      plugin.settings.display.cardMode === true,
-      async (val) => { await plugin.tooltip.setCardMode(val); },
-    );
-
-    UIFactory.buildDropdown(
-      card,
-      "Card Trigger",
-      "When Card Mode is on: show cards for every hover, or only while you hold a key (otherwise you get the normal tooltip). Pressing the key while already hovering also works.",
-      { always: "Always", shift: "Hold Shift", ctrl: "Hold Ctrl" },
-      plugin.settings.display.cardTrigger ?? "always",
-      async (val) => { plugin.settings.display.cardTrigger = val as any; await plugin.saveSettings(); },
-    );
-
-    UIFactory.buildToggle(
-      card,
-      "Hide mouse pointer on card",
-      "Hides the pointer while a card is showing, so it never appears in your recording. It returns the moment you move off the verse.",
-      plugin.settings.display.cardHideCursor !== false,
-      async (val) => { plugin.settings.display.cardHideCursor = val; await plugin.saveSettings(); },
-    );
-
-    // Skins are read from disk, so the picker fills in once the folder is listed.
-    listSkins(adapter, pluginDir).then((files) => {
+    let c = this.row(sec, "Skin", "Each skin is an HTML file in the plugin's skins folder.");
+    const skinRow = c;
+    listSkins(plugin.app.vault.adapter, pluginDir).then(files => {
       const options: Record<string, string> = { "": BUILTIN_SKIN_LABEL };
       for (const f of files) options[f] = f.replace(/\.html?$/i, "");
-      const current = plugin.settings.display.cardSkin;
-      if (current && !options[current]) options[current] = `${current} (missing — using built-in)`;
-
-      UIFactory.buildDropdown(card, "Card Skin", "The look of the card. Each skin is a complete HTML page in the plugin's skins folder.", options, current, async (val) => {
-        plugin.settings.display.cardSkin = val;
-        await plugin.saveSettings();
+      const current = this.s.display.cardSkin;
+      if (current && !options[current]) options[current] = `${current} (missing, using built-in)`;
+      this.select(skinRow, options, current, async v => {
+        this.s.display.cardSkin = v;
+        await this.save();
         plugin.tooltip.card?.reloadSkin();
         plugin.tooltip.card?.warm();
       });
-
-      UIFactory.buildButton(card, "Preview", "Show the current skin for a few seconds.", "Preview Card", () => {
-        const c = plugin.tooltip.card;
-        if (!c) return;
-        c.reloadSkin();
-        c.show({
-          key: "preview",
-          reference: "John 3:16",
+      this.button(skinRow, "Preview", () => {
+        const card = plugin.tooltip.card;
+        if (!card) return;
+        card.reloadSkin();
+        card.show({
+          key: "preview", reference: "John 3:16", version: "KJV", book: "John", testament: "nt",
           text: "For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.",
-          version: "KJV", book: "John", testament: "nt",
           palette: { base: "#7c5cff", light: "#e4dcff", mid: "#a995ff", dark: "#3a2a99" },
         });
-        setTimeout(() => c.hide(), 4500);
+        setTimeout(() => card.hide(), 4500);
       }, true);
+    });
 
-      UIFactory.buildButton(card, "Make your own skin", "Copy the design guide, paste it to any AI with a description of the look you want, then save the HTML it gives you into the skins folder.", "Copy AI Guide", () => copyToast(SKIN_GUIDE_TEXT, "Skin guide"));
+    c = this.row(sec, "Show cards", "Every hover, or only while you hold a key (otherwise you get the tooltip).");
+    this.segmented(c, [{ value: "always", label: "Always" }, { value: "shift", label: "Hold Shift" }, { value: "ctrl", label: "Hold Ctrl" }],
+      this.s.display.cardTrigger ?? "always", async v => { this.s.display.cardTrigger = v; await this.save(); });
 
-      UIFactory.buildButton(card, "Skins folder", skinsFolderPath(pluginDir), "Open Folder", () => {
-        try { (plugin.app as any).showInFolder(`${skinsFolderPath(pluginDir)}/SKIN-GUIDE.md`); }
-        catch { new Notice(`Skins folder: ${skinsFolderPath(pluginDir)}`, 6000); }
-      });
+    c = this.row(sec, "Hide the mouse pointer", "Keeps the pointer out of your recording while a card is up.");
+    this.toggle(c, this.s.display.cardHideCursor !== false, async v => { this.s.display.cardHideCursor = v; await this.save(); });
+
+    c = this.row(sec, "Make your own skin", "Copy the design guide, give it to any AI with the look you want, and save the HTML it returns into the skins folder.");
+    this.button(c, "Copy AI guide", () => copyToast(SKIN_GUIDE_TEXT, "Skin guide"));
+    this.button(c, "Open skins folder", () => {
+      try { (plugin.app as any).showInFolder(`${skinsFolderPath(pluginDir)}/SKIN-GUIDE.md`); }
+      catch { new Notice(`Skins folder: ${skinsFolderPath(pluginDir)}`, 6000); }
     });
   }
 
-  private renderAppearanceTab() {
-    // Reading Panel Settings
-    const rpCard = UIFactory.createCard(this.contentPane, "Panel & Hover Behavior", getIcon("verticle-page", 36));
-    // ── Book Color Themes toggle ─────────────────────────────────────────────
-    UIFactory.buildToggle(
-      rpCard,
-      "📖 Colorful Book Themes",
-      "Each book of the Bible colors the UI with its genre accent color. Disable for uniform purple.",
-      this.plugin.settings.display.useBookColors ?? true,
-      async (val) => {
-        this.plugin.settings.display.useBookColors = val;
-        await this.plugin.saveSettings();
-        // Propagate to open views immediately
-        const { workspace } = this.plugin.app;
-        // Update reading panel
-        workspace.getLeavesOfType("scripture-scribe-panel").forEach(leaf => {
-          const view = leaf.view as any;
-          if (view?.refreshPalette) view.refreshPalette();
-        });
-        // Update tooltip
-        if ((this.plugin as any).tooltip?.refreshPalette) {
-          (this.plugin as any).tooltip.refreshPalette();
-        }
-        // Update bible mode view (inside reading panel)
-        workspace.getLeavesOfType("scripture-scribe-panel").forEach(leaf => {
-          const view = leaf.view as any;
-          if (view?.bibleModeView?.refreshPalette) view.bibleModeView.refreshPalette();
-        });
-      }
-    );
+  // ── 4. Word study: interlinear cards and Strong's definitions ───────────────
 
-    UIFactory.buildDropdown(rpCard, "Click Behavior", "What appears when you interact with a highlighted scripture.", { tooltip: "Tooltip Only", panel: "Panel Only", both: "Both Tooltip & Panel" }, this.plugin.settings.display.referenceClickBehavior, async (val) => { this.plugin.settings.display.referenceClickBehavior = val as any; await this.plugin.saveSettings(); });
-    UIFactory.buildDropdown(rpCard, "Tooltip Style", "Auto detects touch devices.", { auto: "Auto", hover: "Hover Tooltip", "bottom-sheet": "Bottom Sheet" }, this.plugin.settings.display.tooltipStyle, async (val) => { this.plugin.settings.display.tooltipStyle = val as any; await this.plugin.saveSettings(); });
-    UIFactory.buildSlider(rpCard, "Hover Delay", "Milliseconds before tooltip appears.", 100, 1000, this.plugin.settings.hoverSettings.triggerDelayMs, (val) => { }, async (val) => { this.plugin.settings.hoverSettings.triggerDelayMs = val; await this.plugin.saveSettings(); });
-    UIFactory.buildButton(rpCard, "Open Reader", "Launch the persistent reading sidebar.", "Open Reading Panel", () => (this.plugin as any).activatePanel?.(), true);
+  private redrawWords: () => void = () => {};
 
-    this.renderCardModeCard();
+  private renderStudy(root: HTMLElement): void {
+    const sec = this.section(root, "Study", "interliniar", "Word study", "Interlinear word cards and Strong's definitions. Tap a color family to check how each part of the Bible reads.");
+    const preview = sec.createDiv({ cls: "ss-preview" });
+    const families = preview.createDiv({ cls: "ss-seg" });
+    families.style.marginBottom = "10px";
+    const words = preview.createDiv({ cls: "ss-words" });
+    const def = preview.createDiv({ cls: "ss-def" });
+    let family = 41;
 
-    // Word Cards Restructured
-    const wcCard = UIFactory.createCard(this.contentPane, "Interlinear Word Cards", getIcon("Search-word", 36));
-    const grid = wcCard.createEl("div", { attr: { style: "display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: center; padding-top: 8px;" } });
-
-    // Left: Toggles
-    const toggleCol = grid.createEl("div", { attr: { style: "display: flex; flex-direction: column; gap: 16px;" } });
-    const getCardPrefs = () => ({ eng: this.plugin.settings.display.cardShowEnglish !== false, translit: this.plugin.settings.display.cardShowTranslit !== false, strongs: this.plugin.settings.display.cardShowStrongs !== false });
-
-    const makeCheck = (label: string, checked: boolean, onChange: (v: boolean) => void, disabled = false) => {
-      const row = toggleCol.createEl("label", { attr: { style: `display: flex; align-items: center; gap: 8px; cursor: ${disabled ? 'not-allowed' : 'pointer'}; font-size: 13px; color: var(--text-normal); opacity: ${disabled ? '0.5' : '1'};` } });
-      const cb = row.createEl("input"); cb.type = "checkbox"; cb.checked = checked; cb.disabled = disabled;
-      row.appendText(label);
-      cb.addEventListener("change", () => onChange(cb.checked));
-    };
-
-    const previewCol = grid.createEl("div");
-
-    makeCheck("Original Language", true, () => { }, true);
-    makeCheck("English Gloss", getCardPrefs().eng, async (v) => { this.plugin.settings.display.cardShowEnglish = v; await this.plugin.saveSettings(); buildWordCardPreview(previewCol, getCardPrefs().eng, getCardPrefs().translit, getCardPrefs().strongs); });
-    makeCheck("Transliteration", getCardPrefs().translit, async (v) => { this.plugin.settings.display.cardShowTranslit = v; await this.plugin.saveSettings(); buildWordCardPreview(previewCol, getCardPrefs().eng, getCardPrefs().translit, getCardPrefs().strongs); });
-    makeCheck("Strong's Number", getCardPrefs().strongs, async (v) => { this.plugin.settings.display.cardShowStrongs = v; await this.plugin.saveSettings(); buildWordCardPreview(previewCol, getCardPrefs().eng, getCardPrefs().translit, getCardPrefs().strongs); });
-
-    buildWordCardPreview(previewCol, getCardPrefs().eng, getCardPrefs().translit, getCardPrefs().strongs);
-
-    // Unified Typography & Highlights Card
-    const uniCard = UIFactory.createCard(this.contentPane, "Typography & Highlights", getIcon("Lamp-burning-suppoert", 36));
-
-    // Unified Preview Box
-    const uniPreview = uniCard.createEl("div", { attr: { style: "padding: 16px 20px; background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 8px; line-height: 1.8; margin-bottom: 24px; transition: font-size 0.1s;" } });
-    uniPreview.innerHTML = `In the beginning God created the heaven and the earth. <span id="ss-uni-hl" style="border-radius:4px; padding:0 4px; transition: background 0.1s, color 0.1s;">And the earth was without form, and void;</span> and darkness was upon the face of the deep.`;
-    const hlSpan = uniPreview.querySelector("#ss-uni-hl") as HTMLElement;
-
-    const hexToRgba = (hex: string, a: number) => {
-      const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-      return `rgba(${r},${g},${b},${a})`;
-    };
-
-    const updateUniPreview = (size: number, key: string, op: number, col: string) => {
-      // Typography
-      uniPreview.style.fontSize = `${size}px`;
-      loadGFont(key);
-      const font = FONT_FLAT_LIST.find(f => f.key === key);
-      uniPreview.style.fontFamily = font ? font.css : "inherit";
-
-      // Two-Tone Gradient Highlight
-      const opacity = op / 100;
-      hlSpan.style.background = `linear-gradient(to right, ${hexToRgba("#8CD2FE", opacity)} 0%, ${hexToRgba("#F392C1", opacity)} 100%)`;
-
-      // Auto vs Inverted text color logic
-      if (col === "inverted") {
-        hlSpan.classList.add("ss-text-inverted");
-        hlSpan.classList.remove("ss-text-auto");
-      } else {
-        hlSpan.classList.add("ss-text-auto");
-        hlSpan.classList.remove("ss-text-inverted");
-      }
-    };
-
-    // Initialize Preview
-    updateUniPreview(
-      this.plugin.settings.bibleText.fontSize,
-      this.plugin.settings.bibleText.fontFamily,
-      this.plugin.settings.vaultHighlight.opacity,
-      this.plugin.settings.vaultHighlight.textColor
-    );
-
-    // Settings Controls Stacked Below Preview
-    UIFactory.buildSlider(uniCard, "Highlight Opacity", "Intensity of the gradient glow on referenced verses.", 0, 100, this.plugin.settings.vaultHighlight.opacity,
-      (val) => updateUniPreview(this.plugin.settings.bibleText.fontSize, this.plugin.settings.bibleText.fontFamily, val, this.plugin.settings.vaultHighlight.textColor),
-      async (val) => { this.plugin.settings.vaultHighlight.opacity = val; await this.plugin.saveSettings(); }
-    );
-
-    // Auto / Inverted Dropdown
-    UIFactory.buildDropdown(uniCard, "Highlight Text Color", "Inverted ensures contrast flips automatically with your theme.", { auto: "Auto", inverted: "Inverted" }, this.plugin.settings.vaultHighlight.textColor === "auto" ? "auto" : "inverted",
-      async (val) => {
-        this.plugin.settings.vaultHighlight.textColor = val as any;
-        updateUniPreview(this.plugin.settings.bibleText.fontSize, this.plugin.settings.bibleText.fontFamily, this.plugin.settings.vaultHighlight.opacity, val);
-        await this.plugin.saveSettings();
-      }
-    );
-
-    // Live Scrub Slider
-    UIFactory.buildSlider(uniCard, "Bible Text Size", "Base font size for the reader.", 11, 26, this.plugin.settings.bibleText.fontSize,
-      (val) => updateUniPreview(val, this.plugin.settings.bibleText.fontFamily, this.plugin.settings.vaultHighlight.opacity, this.plugin.settings.vaultHighlight.textColor),
-      async (val) => { this.plugin.settings.bibleText.fontSize = val; await this.plugin.saveSettings(); }
-    );
-
-    // Flat Font Grid
-    uniCard.createEl("div", { cls: "ss-setting-name", text: "Bible Font", attr: { style: "margin: 20px 0 10px;" } });
-    const fontGrid = uniCard.createEl("div", { attr: { style: "display: flex; flex-wrap: wrap; gap: 8px;" } });
-
-    FONT_FLAT_LIST.forEach(font => {
-      loadGFont(font.key); // ensure font is loaded to display properly on the button
-      const btn = fontGrid.createEl("button", { text: font.display });
-      const isActive = this.plugin.settings.bibleText.fontFamily === font.key;
-      btn.classList.add("ss-font-btn");
-      btn.style.border = `1px solid ${isActive ? P : 'var(--background-modifier-border)'}`;
-      btn.style.background = isActive ? PL : 'var(--background-secondary)';
-      btn.style.color = isActive ? P : 'var(--text-normal)';
-      btn.style.fontFamily = font.css;
-      btn.addEventListener("click", async () => {
-        fontGrid.querySelectorAll("button").forEach(b => { b.style.borderColor = "var(--background-modifier-border)"; b.style.background = "var(--background-secondary)"; b.style.color = "var(--text-normal)"; });
-        btn.style.borderColor = P; btn.style.background = PL; btn.style.color = P;
-        this.plugin.settings.bibleText.fontFamily = font.key;
-        updateUniPreview(this.plugin.settings.bibleText.fontSize, font.key, this.plugin.settings.vaultHighlight.opacity, this.plugin.settings.vaultHighlight.textColor);
-        await this.plugin.saveSettings();
+    const draw = () => {
+      const pal = contrastSafePalette(getBookPalette(family, this.s.display.useBookColors !== false));
+      const d = this.s.display;
+      words.empty();
+      SAMPLE_WORDS.forEach((w, i) => {
+        const selected = i === 1;
+        const card = words.createDiv({ cls: "ss-wc" });
+        if (selected) { card.style.background = pal.light; card.style.borderColor = pal.base; card.style.boxShadow = `0 2px 12px ${pal.base}55`; }
+        if (d.cardShowEnglish !== false) card.createDiv({ cls: "ss-wc-e", text: w.english }).style.color = selected ? "#1a1a2e" : "";
+        card.createDiv({ cls: "ss-wc-o", text: w.original }).style.color = selected ? pal.textOnLight : pal.mid;
+        if (d.cardShowTranslit !== false) card.createDiv({ cls: "ss-wc-t", text: w.translit }).style.color = selected ? "#55526a" : "";
+        if (d.cardShowStrongs !== false) card.createDiv({ cls: "ss-wc-s", text: w.strongs }).style.color = selected ? pal.textOnLight : pal.mid;
+        if (this.s.morphology.enabled) card.createDiv({ cls: "ss-wc-m", text: w.morph }).style.color = selected ? pal.textOnLight : pal.mid;
       });
-    });
+      def.empty();
+      def.style.background = pal.light;
+      def.style.border = `1px solid ${pal.mid}`;
+      def.createDiv({ cls: "ss-def-h", text: "G2098 · gospel · εὐαγγέλιον" }).style.color = pal.textOnLight;
+      def.createDiv({ text: this.s.morphology.uiMode === "advanced"
+        ? "εὐαγγέλιον, -ου, τό (εὐάγγελος), [in LXX for בְּשׂרָה ;] 1. in cl., a reward for good tidings. 2. later, the good tidings…"
+        : "good news, the gospel: the message of salvation." }).style.color = "#1a1a2e";
+      if (this.s.morphology.enabled) {
+        const m = def.createDiv({ cls: "ss-def-m" });
+        m.createEl("b", { text: "noun · accusative · singular · neuter" }).style.color = pal.textOnLight;
+        m.createSpan({ text: "person/place/thing · direct object · one" });
+      }
+    };
+    for (const f of COLOR_FAMILIES) {
+      const b = families.createEl("button", { text: f.label, cls: f.id === family ? "on" : "" });
+      b.addEventListener("click", () => { family = f.id; families.querySelectorAll("button").forEach(x => x.toggleClass("on", x === b)); draw(); });
+    }
+    this.redrawWords = draw;
+    draw();
+
+    let c = this.row(sec, "Definitions", "Simple shows plain-English meanings; Advanced shows the full lexicon entry and raw grammar codes.");
+    this.segmented(c, [{ value: "simple", label: "Simple" }, { value: "advanced", label: "Advanced" }], this.s.morphology.uiMode,
+      async v => { this.s.morphology.uiMode = v; draw(); await this.save(); });
+
+    c = this.row(sec, "On each word card", "", true);
+    const checks = c.createDiv({ cls: "ss-checks" });
+    const check = (label: string, value: boolean, onChange: (v: boolean) => void) => {
+      const l = checks.createEl("label");
+      const cb = l.createEl("input", { type: "checkbox" });
+      cb.checked = value;
+      l.appendText(label);
+      cb.addEventListener("change", async () => { onChange(cb.checked); draw(); await this.save(); });
+    };
+    check("English gloss", this.s.display.cardShowEnglish !== false, v => this.s.display.cardShowEnglish = v);
+    check("Transliteration", this.s.display.cardShowTranslit !== false, v => this.s.display.cardShowTranslit = v);
+    check("Strong's number", this.s.display.cardShowStrongs !== false, v => this.s.display.cardShowStrongs = v);
+    check("Grammar (morphology)", this.s.morphology.enabled, v => this.s.morphology.enabled = v);
+
+    c = this.row(sec, "Teaching notes", "Short 💡 notes on why a grammatical form matters.");
+    this.toggle(c, this.s.morphology.showTeachingNotes, async v => { this.s.morphology.showTeachingNotes = v; await this.save(); });
+
+    c = this.row(sec, "Cross-references shown", "How many appear before “show all”.");
+    this.segmented(c, [{ value: "3", label: "3" }, { value: "5", label: "5" }], String(this.s.crossRefs.showLessCount) as "3" | "5",
+      async v => { this.s.crossRefs.showLessCount = Number(v) as 3 | 5; await this.save(); });
   }
 
-  private renderScholarTab() {
-    const P = "#8CD2FE"; // local color ref
+  // ── 5. Writing & embeds ─────────────────────────────────────────────────────
 
-    // ── Verse of the Day ─────────────────────────────────────────────────────
-    const votdCard = UIFactory.createCard(this.contentPane, "Verse of the Day", getIcon("open-scroll", 36));
-    UIFactory.buildToggle(votdCard, "Enable VOTD", "Show a daily curated verse when the reading panel is empty.", 
-      this.plugin.settings.verseOfTheDay.enabled, async (v) => { this.plugin.settings.verseOfTheDay.enabled = v; await this.plugin.saveSettings(); });
-    UIFactory.buildDropdown(votdCard, "Algorithm", "Deterministic = same for everyone. Random = your own path.", 
-      { deterministic: "Deterministic", random: "Random" }, this.plugin.settings.verseOfTheDay.algorithm, 
-      async (v) => { this.plugin.settings.verseOfTheDay.algorithm = v as any; await this.plugin.saveSettings(); });
-    UIFactory.buildToggle(votdCard, "Show on Startup", "Automatically show today's verse when Obsidian opens.", 
-      this.plugin.settings.verseOfTheDay.showOnStartup, async (v) => { this.plugin.settings.verseOfTheDay.showOnStartup = v; await this.plugin.saveSettings(); });
+  private renderWriting(root: HTMLElement): void {
+    const sec = this.section(root, "Writing", "embed-text-white-qwill", "Writing & embeds", "What the Embed button writes into your note, and how citations are copied.");
+    let c = this.row(sec, "Embed style", "Used by the Embed button and Embed All.");
+    this.segmented(c, [{ value: "quote", label: "❝ Quote block" }, { value: "tooltip", label: "Footnote" }, { value: "link", label: "Link" }],
+      this.s.embedding.defaultStyle, async v => { this.s.embedding.defaultStyle = v; await this.save(); });
 
-    // ── Citation Settings ────────────────────────────────────────────────────
-    const citeCard = UIFactory.createCard(this.contentPane, "Citations & Export", getIcon("embed-text-white-qwill", 36));
-    UIFactory.buildDropdown(citeCard, "Default Citation Format", "The style used when clicking 'Copy as Citation'.", 
-      { apa: "APA (7th Ed.)", chicago: "Chicago (17th)", turabian: "Turabian", mla: "MLA (9th)", plain: "Plain / Everyday" }, 
-      this.plugin.settings.citation.format, async (v) => { this.plugin.settings.citation.format = v as any; await this.plugin.saveSettings(); });
-    UIFactory.buildToggle(citeCard, "Include Version Badge", "Append the translation code (e.g. KJV) to the citation.", 
-      this.plugin.settings.citation.includeVersion, async (v) => { this.plugin.settings.citation.includeVersion = v; await this.plugin.saveSettings(); });
+    c = this.row(sec, "Add the version to embeds", "Appends “KJV” (or the version in use).");
+    this.toggle(c, this.s.embedding.includeVersionBadge, async v => { this.s.embedding.includeVersionBadge = v; await this.save(); });
 
-    // ── Morphology & Scholar Mode ─────────────────────────────────────────────
-    const morphCard = UIFactory.createCard(this.contentPane, "Scholar Mode (Alpha)", getIcon("interliniar", 36));
-    UIFactory.buildToggle(morphCard, "Enable Morphology", "Show grammatical parsing for Greek and Hebrew words.", 
-      this.plugin.settings.morphology.enabled, async (v) => { this.plugin.settings.morphology.enabled = v; await this.plugin.saveSettings(); });
-    UIFactory.buildDropdown(morphCard, "UI Presentation", "Simple = readable labels; Advanced = raw codes + search chips.", 
-      { simple: "Simple (Plain English)", advanced: "Advanced (Technical)" }, 
-      this.plugin.settings.morphology.uiMode, async (v) => { this.plugin.settings.morphology.uiMode = v as any; await this.plugin.saveSettings(); });
-    UIFactory.buildToggle(morphCard, "Exegetical Teaching Notes", "Surface '💡' notes explaining the theological significance of grammar.", 
-      this.plugin.settings.morphology.showTeachingNotes, async (v) => { this.plugin.settings.morphology.showTeachingNotes = v; await this.plugin.saveSettings(); });
+    c = this.row(sec, "Citation format", "Used by Copy as Citation.");
+    this.select(c, { plain: "Plain", apa: "APA (7th)", chicago: "Chicago (17th)", turabian: "Turabian", mla: "MLA (9th)" }, this.s.citation.format,
+      async v => { this.s.citation.format = v as any; await this.save(); });
+    c = this.row(sec, "Add the version to citations", "");
+    this.toggle(c, this.s.citation.includeVersion, async v => { this.s.citation.includeVersion = v; await this.save(); });
+
+    c = this.row(sec, "Verse of the Day", "A daily verse in the reading panel when nothing else is open.");
+    this.toggle(c, this.s.verseOfTheDay.enabled, async v => { this.s.verseOfTheDay.enabled = v; await this.save(); });
+    c = this.row(sec, "Verse of the Day picks", "Shared gives everyone the same verse each day.");
+    this.segmented(c, [{ value: "deterministic", label: "Shared" }, { value: "random", label: "Random" }], this.s.verseOfTheDay.algorithm,
+      async v => { this.s.verseOfTheDay.algorithm = v; await this.save(); });
+    c = this.row(sec, "Show it when Obsidian opens", "");
+    this.toggle(c, this.s.verseOfTheDay.showOnStartup, async v => { this.s.verseOfTheDay.showOnStartup = v; await this.save(); });
   }
 
-  private renderEmbedsTab() {
-    const emCard = UIFactory.createCard(this.contentPane, "Embedding Styles", getIcon("embed-settings-tablets", 36));
-    UIFactory.buildDropdown(emCard, "Default Embed Style", "How references format when injected.", { link: "🔗 URL Link", tooltip: "📎 MD Footnote", quote: "❝ Quote Block" }, this.plugin.settings.embedding.defaultStyle, async (val) => { this.plugin.settings.embedding.defaultStyle = val as any; await this.plugin.saveSettings(); });
-    UIFactory.buildToggle(emCard, "Include Version Badge", "Append the translation abbreviation.", this.plugin.settings.embedding.includeVersionBadge, async (val) => { this.plugin.settings.embedding.includeVersionBadge = val; await this.plugin.saveSettings(); });
+  // ── 6. Setup: set once and forget ──────────────────────────────────────────
 
-    const xrCard = UIFactory.createCard(this.contentPane, "Cross-References", getIcon("interliniar", 36));
-    UIFactory.buildDropdown(xrCard, "Collapsed Count", "How many cross-references to show before 'show all'.", { "3": "3", "5": "5" }, String(this.plugin.settings.crossRefs.showLessCount), async (val) => { this.plugin.settings.crossRefs.showLessCount = Number(val) as any; await this.plugin.saveSettings(); });
+  private renderSetup(root: HTMLElement): void {
+    const sec = this.section(root, "Setup", "shepards-hook", "Setup", "Set once when you start; rarely touched after.", true);
+    let c = this.row(sec, "Translations in the version menu", "Comma-separated, e.g. KJV, LXX, ESV, NIV. Versions other than KJV and LXX need internet.", true);
+    this.textInput(c, this.s.favoriteTranslations.join(", "), 1, async v => { this.s.favoriteTranslations = v.split(",").map(x => x.trim()).filter(Boolean); await this.save(); });
+
+    c = this.row(sec, "Fall back to KJV when offline", "If an online version can't load, show the built-in KJV instead.");
+    this.toggle(c, this.s.offlineFallback, async v => { this.s.offlineFallback = v; await this.save(); });
+
+    c = this.row(sec, "Folders to ignore", "ScriptureScribe won't highlight references in these folders. One path per line.", true);
+    this.textInput(c, this.s.excludedFolders.join("\n"), 3, async v => { this.s.excludedFolders = v.split("\n").map(x => x.trim()).filter(Boolean); await this.save(); });
+
+    c = this.row(sec, "Leave ignored folders out of Bible mode", "Notes in those folders won't color verses or appear under “In your notes”.");
+    this.toggle(c, this.s.vaultScan.useGlobalExclusions, async v => { this.s.vaultScan.useGlobalExclusions = v; await this.save(); });
+
+    c = this.row(sec, "Also leave out of Bible mode", "Extra folders to skip only when finding notes for each verse. One path per line.", true);
+    this.textInput(c, this.s.vaultScan.additionalExclusions.join("\n"), 2, async v => { this.s.vaultScan.additionalExclusions = v.split("\n").map(x => x.trim()).filter(Boolean); await this.save(); });
+
+    c = this.row(sec, "Rescan notes", "Re-read every note for verse references now.");
+    this.button(c, "Scan now", () => this.plugin.startVaultScan(true));
+
+    c = this.row(sec, "Clear verse cache", "Re-fetch online translations.");
+    this.button(c, "Clear", () => new Notice("ScriptureScribe: reload Obsidian to fully clear the cache."));
   }
 
-  private renderCommunityTab() {
-    const socCard = UIFactory.createCard(this.contentPane, "Community Connect", getIcon("Harp-Media", 36));
-    socCard.createEl("p", { text: "Find tutorials, share feedback, and connect with other users. All handles @joyraptor.", cls: "ss-setting-desc", attr: { style: "margin-bottom: 16px;" } });
-    const socRow = socCard.createEl("div", { attr: { style: "display: flex; flex-wrap: wrap; gap: 8px;" } });
-    UIFactory.buildBrandPill(socRow, "Discord", "#5865F2", BRAND_ICONS.discord, () => window.open("https://discord.com/users/joyraptor"));
-    UIFactory.buildBrandPill(socRow, "Twitter / X", "#000000", BRAND_ICONS.twitter, () => window.open("https://x.com/joyraptor"));
-    UIFactory.buildBrandPill(socRow, "YouTube", "#FF0000", BRAND_ICONS.youtube, () => window.open("https://youtube.com/@joyraptor"));
+  // ── 7. Community & support ─────────────────────────────────────────────────
 
-    const donCard = UIFactory.createCard(this.contentPane, "Support the Project", getIcon("olive-branch-give", 36));
-    donCard.createEl("p", { text: "ScriptureScribe is free. If it enriches your study, consider supporting development. Click to copy address.", cls: "ss-setting-desc", attr: { style: "margin-bottom: 16px;" } });
+  private renderSupport(root: HTMLElement): void {
+    const sec = this.section(root, "Support", "olive-branch-give", "Community & support", "ScriptureScribe is free. Say hello, share feedback, or support the work.", true);
+    const pill = (parent: HTMLElement, label: string, bg: string, icon: string, onClick: () => void) => {
+      const b = parent.createEl("button", { cls: "ss-brand" });
+      b.style.background = bg;
+      b.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14">${icon}</svg>`;
+      b.appendText(label);
+      b.addEventListener("click", e => { e.stopPropagation(); onClick(); });
+    };
+    sec.createDiv({ cls: "ss-label", text: "COMMUNITY · @joyraptor" });
+    let row = sec.createDiv({ cls: "ss-pills" });
+    pill(row, "Discord", "#5865F2", BRAND_ICONS.discord, () => window.open("https://discord.com/users/joyraptor"));
+    pill(row, "Twitter / X", "#000000", BRAND_ICONS.twitter, () => window.open("https://x.com/joyraptor"));
+    pill(row, "YouTube", "#FF0000", BRAND_ICONS.youtube, () => window.open("https://youtube.com/@joyraptor"));
+    pill(row, "GitHub", "#24292f", "", () => window.open("https://github.com/JoyRaptor/ScriptureScribe"));
 
-    donCard.createEl("div", { text: "DIRECT PAYMENTS", attr: { style: "font-size:10px; font-weight:700; color:var(--text-muted); margin-bottom:8px;" } });
-    const payRow = donCard.createEl("div", { attr: { style: "display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px;" } });
-    UIFactory.buildBrandPill(payRow, "PayPal", "#003087", BRAND_ICONS.paypal, () => window.open("https://paypal.me/joyraptor"));
-    UIFactory.buildBrandPill(payRow, "Venmo", "#3D95CE", BRAND_ICONS.venmo, () => copyToast("@scott-vigil", "Venmo handle"));
-    UIFactory.buildBrandPill(payRow, "Zelle", "#6D1ED4", BRAND_ICONS.zelle, () => copyToast("@scott-vigil", "Zelle handle"));
+    sec.createDiv({ cls: "ss-label", text: "GIVE · click to copy" });
+    row = sec.createDiv({ cls: "ss-pills" });
+    pill(row, "PayPal", "#003087", BRAND_ICONS.paypal, () => window.open("https://paypal.me/joyraptor"));
+    pill(row, "Venmo", "#3D95CE", BRAND_ICONS.venmo, () => copyToast("@scott-vigil", "Venmo handle"));
+    pill(row, "Zelle", "#6D1ED4", BRAND_ICONS.zelle, () => copyToast("@scott-vigil", "Zelle handle"));
+    pill(row, "Bitcoin", "#F7931A", BRAND_ICONS.bitcoin, () => copyToast("bc1qqrexm09npkns55l7k5z88hwm2en98nsv5ct9je", "Bitcoin address"));
+    pill(row, "Ethereum", "#627EEA", BRAND_ICONS.ethereum, () => copyToast("0xf3Af7973bc6ce0179A1fC2D7e7805D260225cBD6", "Ethereum address"));
+    pill(row, "Litecoin", "#8a8a8a", BRAND_ICONS.litecoin, () => copyToast("LW9uQNm3DPXdbT4dXCiw9YE5HFU5nn8BFU", "Litecoin address"));
+    pill(row, "Dogecoin", "#c2a633", BRAND_ICONS.dogecoin, () => copyToast("DDJYAXCzoyd35xMYuYRHKEg5jeMwVJKthQ", "Dogecoin address"));
+    pill(row, "DERO", "#1717dc", BRAND_ICONS.dero, () => copyToast("joyraptor", "DERO address"));
+    sec.createDiv({ attr: { style: "height:10px" } });
+  }
 
-    donCard.createEl("div", { text: "CRYPTOCURRENCY", attr: { style: "font-size:10px; font-weight:700; color:var(--text-muted); margin-bottom:8px;" } });
-    const cryRow = donCard.createEl("div", { attr: { style: "display: flex; flex-wrap: wrap; gap: 8px;" } });
-    UIFactory.buildBrandPill(cryRow, "Bitcoin", "#F7931A", BRAND_ICONS.bitcoin, () => copyToast("bc1qqrexm09npkns55l7k5z88hwm2en98nsv5ct9je", "Bitcoin address"));
-    UIFactory.buildBrandPill(cryRow, "Ethereum", "#627EEA", BRAND_ICONS.ethereum, () => copyToast("0xf3Af7973bc6ce0179A1fC2D7e7805D260225cBD6", "Ethereum address"));
-    UIFactory.buildBrandPill(cryRow, "Litecoin", "#BFBBBB", BRAND_ICONS.litecoin, () => copyToast("LW9uQNm3DPXdbT4dXCiw9YE5HFU5nn8BFU", "Litecoin address"));
-    UIFactory.buildBrandPill(cryRow, "Dogecoin", "#f7d345ff", BRAND_ICONS.dogecoin, () => copyToast("DDJYAXCzoyd35xMYuYRHKEg5jeMwVJKthQ", "Dogecoin address"));
-    UIFactory.buildBrandPill(cryRow, "DERO", "#1717dcff", BRAND_ICONS.dero, () => copyToast("joyraptor", "DERO address"));
+  hide(): void {
+    super.hide();
+    // Previews push their values into the highlight module; restore the saved ones on close.
+    setVaultHighlightSettings(this.s.vaultHighlight.opacity, this.s.vaultHighlight.textColor);
   }
 }

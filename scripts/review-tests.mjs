@@ -33,6 +33,37 @@ assert.equal(api.expandRef(api.parseScriptureRefs('Gen 12')[0]).length,20);
 assert(api.buildLink(range,'KJV').includes('7%3A25-8%3A1'));
 console.log(`PASS: ${cases.length} parser cases, offsets, chapter expansion, cross-chapter retrieval, complete-passage links`);
 
+// Reading mode parses each bullet as its own block; "v40" must still find "Acts 10:39" in the bullet above.
+const sermon=['[Peter preaches the same','✝️ the death Acts 10:39','🌅 the resurrection v40','👁️ the witnesses v41','📜 "to him give all the prophets witness" v43','🕊️ The Spirit falls mid-sermon on the hearers v44]'].map(text=>({text}));
+const run=api.parseBlockRun(sermon);
+assert.deepEqual(run.map(refs=>refs.map(api.refToString)),[[],['Acts 10:39'],['Acts 10:40'],['Acts 10:41'],['Acts 10:43'],['Acts 10:44']]);
+run.forEach((refs,i)=>refs.forEach(r=>assert.match(sermon[i].text.slice(r.start,r.end),/^(?:Acts 10:39|v4\d)$/)));
+assert.deepEqual(api.parseBlockRun([{text:'the resurrection v40'}],'* the death Acts 10:39').map(r=>r.map(api.refToString)),[['Acts 10:40']],'lead-in from the section above');
+assert.deepEqual(api.parseBlockRun([{text:'Acts 10:39',isolated:true},{text:'then v40'}]).map(r=>r.map(api.refToString)),[['Acts 10:39'],[]],'headings do not anchor');
+// A chapter-only reference previews its first verse.
+const chapterRef=api.parseScriptureRefs('Psalm 50')[0];assert(chapterRef.chapterOnly);assert.equal(api.refToString(api.previewRef(chapterRef)),'Psalms 50:1');
+const verseRef=api.parseScriptureRefs('Ps 50:3')[0];assert.equal(api.previewRef(verseRef),verseRef);
+console.log('PASS: reading-mode bullet runs (v40 after Acts 10:39), chapter-only preview');
+
+// Forms the soteriology orchard relies on, and other works' citations that must stay plain.
+const orchard=[
+ ['Ac 17:29-30, Ac 17:34',['Acts 17:29-30','Acts 17:34']],['Mt 3:2; Mt 4:17',['Matthew 3:2','Matthew 4:17']],['Lk 13:3, 5',['Luke 13:3,5']],
+ ['Rom 4:3-5',['Romans 4:3-5']],['🏆 overcomes 1 Jn 5:5',['1 John 5:5']],['Jude 1:1',['Jude 1:1']],['2 Chr 30:3',['2 Chronicles 30:3']],
+ ['3 Jn 1:9',['3 John 1:9']],['Philem 1:24',['Philemon 1:24']],['Zech 8:14',['Zechariah 8:14']],['Amos 7:3',['Amos 7:3']],['Jonah 3:10',['Jonah 3:10']],
+ ['as he spake Jn 8:28, and v30',['John 8:28','John 8:30']],['the rock was Christ 1 Cor 10:4',['1 Corinthians 10:4']],['Ac10:39',['Acts 10:39']],
+ ['the same "in" as Gn 15:6: Nineveh believed',['Genesis 15:6']],['🪨 Isa 28:16: "he that believeth"',['Isaiah 28:16']],
+ ['consent Isa1:19 Deu30:19 Jos24:15 Rom10:9-10 Act16:31 Joh3:36 Amo3:3',['Isaiah 1:19','Deuteronomy 30:19','Joshua 24:15','Romans 10:9-10','Acts 16:31','John 3:36','Amos 3:3']],
+ ['Mat.11:26, Luk.10:21, Mrk 1:15',['Matthew 11:26','Luke 10:21','Mark 1:15']],['in Act 3 of the play',[]],['a Mat 5 feet wide',[]],
+ ['Gal 3:10 quotes Dt 27:26, and that chapter\'s curse-list is moral law:\n\n- 🗿 images v15\n- 👪 dishonoring parents v16',['Galatians 3:10','Deuteronomy 27:26','Deuteronomy 27:15','Deuteronomy 27:16']],
+ ['Dt 27:26 is the curse.\n\n- images v15',['Deuteronomy 27:26']],
+ ['alignment with him Amo3:3 Rom12:2 Php2:2 1Co1:10.',['Amos 3:3','Romans 12:2','Philippians 2:2','1 Corinthians 1:10']],
+ ['Noah "found grace" first Gn 6:8.',['Genesis 6:8']],['Rom 3:3 John 3:16',['Romans 3:3','John 3:16']],['4 John 1:1 and 2 Nephi 31:20',[]],['12:30:45 then Gen 1:1:2',[]],
+ ['Diodorus 17.30.6 · *Antiquities* 16.240 · *Church History* 3.5.3 · *Against Heresies* 1.26.2 · *Institutes* 3.3.5 · WCF 15.3 · Sermon 43, III.2',[]],
+];
+for(const [input,wanted] of orchard) assert.deepEqual(api.parseScriptureRefs(input).map(api.refToString),wanted,input);
+assert(api.continuesAcrossBlank('curse-list is moral law:','- 🗿 images v15')&&!api.continuesAcrossBlank('the curse.','- images v15'));
+console.log(`PASS: ${orchard.length} orchard address forms (trailing colons, STEPBible codes, colon-introduced lists, non-Bible citations)`);
+
 function editorFor(value) {
  return { value, getValue(){return this.value;}, getCursor(){return {line:0,ch:0};}, getLine(){return this.value;}, offsetToPos(offset){return {line:0,ch:offset};},
  replaceRange(text,from,to=from){this.value=this.value.slice(0,from.ch)+text+this.value.slice(to.ch);}, setValue(text){this.value=text;} };

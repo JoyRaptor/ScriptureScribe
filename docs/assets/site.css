@@ -257,6 +257,18 @@ h2 { font-size: clamp(2.5rem, 5vw, 4.1rem); line-height: 1; margin-bottom: 24px;
 .js .reveal { opacity: 0; transform: translateY(28px); transition: opacity .9s cubic-bezier(.2, .7, .2, 1), transform .9s cubic-bezier(.2, .7, .2, 1); }
 .js .reveal.in { opacity: 1; transform: none; }
 
+/* ── why: comparison ── */
+.vs { max-width: 1040px; margin: 0 auto; border-radius: 20px; overflow: hidden; border: 1px solid var(--line-2);
+  background: linear-gradient(180deg, rgba(20, 18, 38, .85), rgba(10, 9, 22, .9)); box-shadow: 0 40px 120px -40px rgba(0, 0, 0, .9), 0 0 80px -30px rgba(255, 63, 208, .4); }
+.vs-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1.7fr); border-top: 1px solid var(--line); }
+.vs-row:first-child { border-top: 0; }
+.vs-row > * { padding: 16px 20px; }
+.vs-row b { font: 600 .8rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); align-self: center; }
+.vs-row span:nth-child(2) { color: var(--ink-3); font-size: .95rem; align-self: center; }
+.vs-row span:nth-child(3) { color: var(--ink); font-size: 1rem; background: linear-gradient(90deg, rgba(155, 107, 255, .1), rgba(255, 63, 208, .06)); border-left: 1px solid rgba(155, 107, 255, .35); }
+.vs-head span { font: 600 .74rem var(--mono) !important; letter-spacing: .14em; text-transform: uppercase; }
+.vs-head span:nth-child(3) { color: #fff !important; background: linear-gradient(90deg, rgba(155, 107, 255, .35), rgba(255, 63, 208, .25)) !important; text-shadow: 0 0 10px rgba(255, 63, 208, .7); }
+
 /* ── 01 demo ── */
 .demo {
   position: relative; border-radius: 18px; border: 1px solid var(--line-2);
@@ -450,6 +462,9 @@ h2 { font-size: clamp(2.5rem, 5vw, 4.1rem); line-height: 1; margin-bottom: 24px;
   .lex-lemma { font-size: 2.6rem; }
   .cards { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: 1fr 1fr; row-gap: 34px; }
+  .vs-row { grid-template-columns: 1fr 1fr; }
+  .vs-row b { grid-column: 1 / -1; padding-bottom: 0; }
+  .vs-head span:first-child { display: none; }
   .steps { grid-template-columns: 1fr; }
   .foot-grid { grid-template-columns: 1fr; gap: 24px; }
   .hud-float { right: 0; bottom: 6%; }
