@@ -103,8 +103,11 @@ export default class ScriptureScribePlugin extends Plugin {
     configureSemanticSearch(this.app, this.manifest.dir!);
     configureSearchLoader(() => this.loadSearchData());
     // Registration is cheap; data is loaded by the feature that needs it.
+    // Check for the panel's leaf, not its view: Obsidian builds sidebar views lazily, so at this
+    // point a restored panel is usually still a placeholder and `getReadingPanel()` returns null.
+    // (The view factory below also starts the scan when the panel is built.)
     this.app.workspace.onLayoutReady(() => {
-      if (this.getReadingPanel()) void this.startVaultScan();
+      if (this.app.workspace.getLeavesOfType(READING_PANEL_VIEW_TYPE).length) void this.startVaultScan();
     });
 
     // Incremental index updates when notes are created, changed, or deleted
@@ -181,6 +184,9 @@ export default class ScriptureScribePlugin extends Plugin {
       (leaf) => {
         const view = new ScriptureReadingPanel(leaf, this.settings, () => this.saveSettings());
         this.panelViews.add(view);
+        // Bible-mode highlights and "In your notes" need the vault index. Start it whenever a panel
+        // is built, however late; startVaultScan reuses a scan that is already running or done.
+        this.app.workspace.onLayoutReady(() => { if (!this.disposed) void this.startVaultScan(); });
         return view;
       }
     );
