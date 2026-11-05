@@ -175,8 +175,29 @@ export const DEFAULT_SETTINGS: ScriptureScribeSettings = {
   },
 };
 
+/** BibleGateway version codes, for links. */
 export const VERSION_CODES: Record<string, string> = {
   KJV: "KJV", LXX: "LXX", ESV: "ESV", NIV: "NIV", NASB: "NASB1995",
-  NKJV: "NKJV", NLT: "NLT", CSB: "CSB", AMP: "AMP", MSG: "MSG", NRSV: "NRSV",
+  NKJV: "NKJV", NLT: "NLT", CSB: "CSB", AMP: "AMP", MSG: "MSG", NRSV: "NRSV", TLV: "TLV",
+  WEB: "WEB", ASV: "ASV", YLT: "YLT", DARBY: "DARBY", DRA: "DRA",
 };
+
+/**
+ * Translations ScriptureScribe can actually show. KJV and LXX ship with the plugin; the rest are
+ * public-domain texts fetched from bible-api.com (free, no key, 15 requests per 30 s). Nothing is
+ * ever substituted: if a text can't load, the reader says so and shows the KJV labelled as KJV.
+ */
+export interface TranslationInfo { id: string; name: string; api?: string; note?: string }
+export const TRANSLATIONS: TranslationInfo[] = [
+  { id: "KJV",   name: "King James Version" },
+  { id: "LXX",   name: "Septuagint (Swete, Greek)", note: "Old Testament" },
+  { id: "WEB",   name: "World English Bible", api: "web" },
+  { id: "ASV",   name: "American Standard Version", api: "asv" },
+  { id: "YLT",   name: "Young's Literal Translation", api: "ylt", note: "New Testament" },
+  { id: "DARBY", name: "Darby Bible", api: "darby" },
+  { id: "DRA",   name: "Douay-Rheims", api: "dra" },
+];
+/** Copyrighted translations: no free source may serve their text, so they open on BibleGateway. */
+export const EXTERNAL_TRANSLATIONS = ["ESV", "NIV", "NASB", "NKJV", "NLT", "CSB", "NRSV", "AMP", "MSG", "TLV"];
+export const translationInfo = (id: string): TranslationInfo | undefined => TRANSLATIONS.find(t => t.id === id);
 

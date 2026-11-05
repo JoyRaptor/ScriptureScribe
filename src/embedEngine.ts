@@ -61,12 +61,16 @@ export function buildLink(ref: ScriptureRef, version: string): string {
   return `[${refToString(ref)}](${url})`;
 }
 
+/** Embeds name their translation unless "Add the version to embeds" is off; set by each embed entry point. */
+let withVersion = true;
+const tag = (verse: VerseResult): string => withVersion ? verse.version : "";
+
 export function buildTooltipRef(ref: ScriptureRef, verse: VerseResult, footnoteIndex: number): {
   inline: string;
   footnote: string;
 } {
   const label = refToString(ref);
-  const badge = verse.version ? ` (${verse.version})` : "";
+  const badge = tag(verse) ? ` (${tag(verse)})` : "";
   return {
     inline:   `${label}[^ss${footnoteIndex}]`,
     footnote: `[^ss${footnoteIndex}]: ${verse.text}${badge}`,
@@ -75,7 +79,7 @@ export function buildTooltipRef(ref: ScriptureRef, verse: VerseResult, footnoteI
 
 export function buildQuoteBlock(ref: ScriptureRef, verse: VerseResult): string {
   const label = refToString(ref);
-  const badge = verse.version ? `, ${verse.version}` : "";
+  const badge = tag(verse) ? `, ${tag(verse)}` : "";
   const text = verse.formattedText ?? verse.text;
   return `> "${text}"\n> — ${label}${badge}`;
 }
@@ -121,6 +125,7 @@ export async function embedInterlinear(
   ref: ScriptureRef,
   settings: ScriptureScribeSettings
 ): Promise<void> {
+  withVersion = settings.embedding?.includeVersionBadge !== false;
   const active = getActiveInterlinear();
 
   if (!active || active.ref !== refToString(ref)) {
@@ -170,6 +175,7 @@ export async function embedAtCursor(
   style: EmbedStyle,
   settings: ScriptureScribeSettings
 ): Promise<void> {
+  withVersion = settings.embedding?.includeVersionBadge !== false;
   const verse = await getScripture(ref, settings);
 
   const cursor = _cachedCursorOffset !== null
@@ -200,7 +206,7 @@ export async function embedAtCursor(
     if (isOnOwnLine) {
       text = buildQuoteBlock(ref, verse);
     } else {
-      const badge = verse.version ? `, ${verse.version}` : "";
+      const badge = tag(verse) ? `, ${tag(verse)}` : "";
       text = `\u201c${verse.text}\u201d (${refToString(ref)}${badge})`;
     }
   }
@@ -230,6 +236,7 @@ export async function embedSingleRef(
   style: EmbedStyle,
   settings: ScriptureScribeSettings
 ): Promise<void> {
+  withVersion = settings.embedding?.includeVersionBadge !== false;
   const verse = await getScripture(ref, settings);
 
   // Find and replace the raw text in the editor
@@ -268,7 +275,7 @@ export async function embedSingleRef(
     const isInline = !isAtStart || !isAtEnd;
     
     if (isInline) {
-      const badge = verse.version ? `, ${verse.version}` : "";
+      const badge = tag(verse) ? `, ${tag(verse)}` : "";
       replacement = `“${verse.text}” (${refToString(ref)}${badge})`;
     } else {
       replacement = buildQuoteBlock(ref, verse);
@@ -289,6 +296,7 @@ export async function embedAllRefs(
   settings: ScriptureScribeSettings,
   onProgress?: (current: number, total: number) => void
 ): Promise<void> {
+  withVersion = settings.embedding?.includeVersionBadge !== false;
   const content = editor.getValue();
   const refs = parseScriptureRefs(content);
 
@@ -325,7 +333,7 @@ export async function embedAllRefs(
       const isInline = !isAtStart || !isAtEnd;
       
       if (isInline) {
-        const badge = verse.version ? `, ${verse.version}` : "";
+        const badge = tag(verse) ? `, ${tag(verse)}` : "";
         replacement = `“${verse.text}” (${refToString(ref)}${badge})`;
       } else {
         replacement = buildQuoteBlock(ref, verse);

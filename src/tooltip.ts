@@ -3,7 +3,8 @@ import { renderPassage } from "./textFormatting";
 import { App, Editor } from "obsidian";
 import type { VerseCard } from "./verseCard";
 import { ScriptureRef, refToString, parseScriptureRefs, previewRef } from "./parser";
-import { getScripture } from "./fetcher";
+import { getScripture, sourceLabel } from "./fetcher";
+import { fillVersionMenu } from "./versionMenu";
 import { embedSingleRef, embedInterlinear, getGlobalEmbedStyle, setGlobalEmbedStyle, setCachedCursorOffset, clearCachedCursorOffset } from "./embedEngine";
 import { ScriptureScribeSettings, VERSION_CODES, DEFAULT_SETTINGS } from "./settings";
 import { parseMorph } from "./morphParser";
@@ -343,10 +344,7 @@ export class ScriptureTooltip {
 
     renderPassage(textEl, verse.formattedText ?? verse.text);
     verLbl.textContent = verse.version;
-    srcEl.textContent  = verse.source === "local" ? "Local KJV"
-                       : verse.source === "cache"  ? `Cache · ${verse.version}`
-                       : "bible-api.com";
-    if (verse.offline) offEl.style.display = "inline";
+    srcEl.textContent  = sourceLabel(verse);
 
     this.wireVersion(ref, editor, verLbl);
     this.wireEmbed(source, editor);
@@ -466,7 +464,7 @@ export class ScriptureTooltip {
       const toggle = header.createEl("button", { cls: "ss-def-toggle", text: isDefAdvanced() ? "technical" : "simple" });
       toggle.style.cssText = `background:none; border:none; cursor:pointer; outline:none; box-shadow:none; font-size:9px; font-weight:700; color:${accent}; padding:0; line-height:1; flex-shrink:0; text-decoration:underline; text-underline-offset:2px;`;
       toggle.onclick = () => {
-        toggleDefAdvanced();
+        this.toggleDefMode();
         this.showStrongs(num, x, y, editor);
       };
 
@@ -916,9 +914,15 @@ export class ScriptureTooltip {
     this.applyDefMode(simple, advanced, toggle);
     toggle.onclick = (e) => {
       e.stopPropagation();
-      toggleDefAdvanced();
+      this.toggleDefMode();
       this.applyDefMode(simple, advanced, toggle);
     };
+  }
+
+  /** Flip simple/technical definitions and remember it: it is the same choice as in settings. */
+  private toggleDefMode(): void {
+    this.settings.morphology.uiMode = toggleDefAdvanced() ? "advanced" : "simple";
+    void this.saveSettings();
   }
 
   private applyDefMode(
@@ -1001,24 +1005,18 @@ export class ScriptureTooltip {
       if (!open) dd.style.display = "block";
     };
 
-    for (const v of this.settings.favoriteTranslations) {
-      const item = document.createElement("div");
-      item.textContent = v;
-      item.style.cssText = "padding:7px 12px;cursor:pointer;font-size:12px;color:var(--text-normal);";
-      item.onmouseenter = () => (item.style.background = "var(--background-modifier-hover)");
-      item.onmouseleave = () => (item.style.background = "");
-      item.onclick = async (e) => {
-        e.stopPropagation();
-        dd.style.display = "none";
-        this.settings.primaryTranslation = v;
-        verLbl.textContent = v;
-        const t = this.q<HTMLElement>(".ss-text")!;
-        t.textContent = "Loading…";
-        const verse = await getScripture(ref, this.settings);
-        if (this.currentRef === ref) renderPassage(t, verse.formattedText ?? verse.text);
-      };
-      dd.appendChild(item);
-    }
+    fillVersionMenu(dd, this.settings.primaryTranslation, async (id) => {
+      dd.style.display = "none";
+      this.settings.primaryTranslation = id;
+      await this.saveSettings();
+      const t = this.q<HTMLElement>(".ss-text")!;
+      t.textContent = "Loading…";
+      const verse = await getScripture(ref, this.settings);
+      if (this.currentRef !== ref) return;
+      renderPassage(t, verse.formattedText ?? verse.text);
+      verLbl.textContent = verse.version; // what loaded, not what was asked for
+      this.q<HTMLElement>(".ss-src")!.textContent = sourceLabel(verse);
+    }, () => this.currentRef);
   }
 
   // ── Embed buttons ─────────────────────────────────────────────

@@ -19,7 +19,7 @@ import { renderPassage } from "./textFormatting";
 import { App, MarkdownView } from "obsidian";
 import { BIBLE_BOOKS, BookMeta } from "./bibleData";
 import { getKJVData, getFormattedKJV } from "./fetcher";
-import { ScriptureScribeSettings } from "./settings";
+import { ScriptureScribeSettings, translationInfo } from "./settings";
 import { getIcon } from "./iconRegistry";
 import {
   getNotePathsForVerse,
@@ -879,45 +879,53 @@ export class BibleModeView {
     }
   }
 
-  /** Fetch all verses of a chapter via getScripture (handles any translation + fallback) */
+  /**
+   * Repaint the chapter (already shown in KJV) in the selected translation. Online translations
+   * come as one whole-chapter request; if that fails, the KJV stays and a note says so, rather
+   * than the reader quietly showing KJV under another translation's name.
+   */
   private async fetchAndRepaintChapter(
     container: HTMLElement,
     pos: BiblePosition,
     bookName: string,
     scrollToVerse?: string
   ): Promise<void> {
-    const { getScripture } = await import("./fetcher");
-
+    const version = this.settings.primaryTranslation;
     const verses: Array<{ num: number; text: string }> = [];
 
-    // Fetch verses sequentially; stop after 3 consecutive misses
-    let misses = 0;
-    for (let v = 1; v <= 176; v++) {  // Ps 119 is longest chapter (176 verses)
-      const ref = {
-        book: bookName, chapter: pos.chapter, verseStart: v,
-        raw: `${bookName} ${pos.chapter}:${v}`,
-        start: 0, end: 0
-      } as any;
-      
-      try {
-        const result = await getScripture(ref, this.settings);
-        if (result.text && !result.text.startsWith("[")) {
-          verses.push({ num: v, text: result.text });
-          misses = 0;
-        } else {
-          misses++;
-          if (misses >= 3) break;
-        }
-      } catch {
-        misses++;
-        if (misses >= 3) break;
+    if (version === "LXX") {
+      // The Septuagint is local: read it verse by verse, stopping after 3 consecutive gaps.
+      const { getScripture } = await import("./fetcher");
+      let misses = 0;
+      for (let v = 1; v <= 176 && misses < 3; v++) {  // Ps 119 is the longest chapter
+        const ref = { book: bookName, chapter: pos.chapter, verseStart: v, raw: `${bookName} ${pos.chapter}:${v}`, start: 0, end: 0 };
+        const result = await getScripture(ref, this.settings).catch(() => null);
+        if (result && result.version === "LXX" && !result.text.startsWith("[")) { verses.push({ num: v, text: result.text }); misses = 0; }
+        else misses++;
       }
+    } else {
+      const notice = this.chapterNotice(container, `Loading ${version}…`);
+      const { getOnlineChapter } = await import("./fetcher");
+      const chapter = await getOnlineChapter(bookName, pos.chapter, version);
+      notice.remove();
+      if (chapter) for (const [num, text] of [...chapter].sort((a, b) => a[0] - b[0])) verses.push({ num, text });
     }
 
-    if (!container.isConnected) return;
-    if (verses.length > 0) {
+    if (!container.isConnected || this.settings.primaryTranslation !== version) return;
+    if (verses.length) {
       this.paintChapter(container, bookName, pos.chapter, verses, scrollToVerse);
+    } else {
+      const note = translationInfo(version)?.note;
+      this.chapterNotice(container, `${version} couldn't load ${bookName} ${pos.chapter}${note ? ` (${note} only)` : " (offline or busy)"}. Showing the KJV.`);
     }
+  }
+
+  /** A one-line note pinned above the chapter text. */
+  private chapterNotice(container: HTMLElement, text: string): HTMLElement {
+    const el = createDiv({ text });
+    el.style.cssText = "font-size:11px; color:var(--text-muted); padding:4px 8px; margin-bottom:6px; border-radius:6px; background:var(--background-secondary); font-family:var(--font-interface);";
+    container.prepend(el);
+    return el;
   }
 
   /** Synchronously paint verse content into the container */

@@ -44,6 +44,7 @@ Bible software like Logos and e-Sword was built around a library, with a notes p
 - Spots references as you type: `Gen 1:1`, `Jn 3:16`, `1 Cor 13:4-8`, `2Tim 3:16`, `Ps 119:105`, `Rm10:1`
 - **Nothing is added to your markdown.** References are underlined on screen, and your files stay untouched.
 - Hover for the verse, switch translation, and jump to cross-references
+- **Translations:** KJV and the Greek Septuagint are built in and work offline. WEB, ASV, Young's Literal (NT), Darby and Douay-Rheims load from [bible-api.com](https://bible-api.com) (public domain, needs internet). ESV, NIV, NASB, NKJV, NLT, CSB, NRSV, AMP, MSG and TLV are copyrighted, so the version menu opens them on BibleGateway instead of pretending to show them. If a translation can't load, you get the KJV, labelled as KJV.
 - **Embed** a verse as a link, footnote or quote block, or use *Embed All* to convert the whole note in one undo step
 - The KJV is built in, so it works with no internet
 
@@ -58,7 +59,7 @@ Bible software like Logos and e-Sword was built around a library, with a notes p
 
 - **Interlinear** Hebrew OT, Greek NT and Septuagint: original word, transliteration, Strong's number and morphology
 - **Strong's search**: type `G5485` or `H7225` to get the lexicon entry and every verse that uses the word
-- **Search** by English, Greek or Hebrew, or **by meaning** with the built-in semantic index
+- **Search** by English, Greek or Hebrew, or **by meaning** (the meaning model downloads once, about 23 MB, the first time you use it; until then concept search falls back to keyword scoring and says so)
 - **Lexicons**: Strong's (19,570 entries), LSJ (10,714) and Swete's LXX
 - **In your notes**: every note in your vault that cites the passage
 - **Cross-references** for 28,752 verses

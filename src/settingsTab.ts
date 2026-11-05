@@ -1,6 +1,8 @@
 import { App, PluginSettingTab, Notice } from "obsidian";
 import type ScriptureScribePlugin from "./main";
-import { VERSION_CODES } from "./settings";
+import { TRANSLATIONS } from "./settings";
+import { clearScriptureCache } from "./fetcher";
+import { setDefAdvanced } from "./defHelpers";
 import { getBookPalette, contrastSafePalette } from "./bookColorUtils";
 import { getIcon } from "./iconRegistry";
 import { listSkins, skinsFolderPath, BUILTIN_SKIN_LABEL, SKIN_GUIDE_TEXT } from "./verseCardSkins";
@@ -326,14 +328,9 @@ export class ScriptureScribeSettingTab extends PluginSettingTab {
     c = this.row(sec, "Hover delay", "How long to rest on a reference before it opens.");
     this.range(c, 100, 1000, 50, this.s.hoverSettings.triggerDelayMs, " ms", () => {}, async v => { this.s.hoverSettings.triggerDelayMs = v; await this.save(); });
 
-    c = this.row(sec, "Tooltip style", "Auto uses a bottom sheet on touch screens.");
-    this.segmented(c, [
-      { value: "auto", label: "Auto" }, { value: "hover", label: "Hover" }, { value: "bottom-sheet", label: "Bottom sheet" },
-    ], this.s.display.tooltipStyle, async v => { this.s.display.tooltipStyle = v; await this.save(); });
-
-    c = this.row(sec, "Translation", "The version shown first. KJV and LXX are built in and work offline.");
+    c = this.row(sec, "Translation", "KJV and the Greek Septuagint are built in and work offline. The others are public-domain texts loaded from bible-api.com. ESV, NIV and other copyrighted translations can't be shown here; the version menu opens them on BibleGateway.");
     const versions: Record<string, string> = {};
-    Object.keys(VERSION_CODES).forEach(v => versions[v] = v);
+    for (const t of TRANSLATIONS) versions[t.id] = `${t.id} · ${t.name}${t.api ? " (online)" : ""}${t.note ? ` · ${t.note}` : ""}`;
     this.select(c, versions, this.s.primaryTranslation, async v => { this.s.primaryTranslation = v; await this.save(); });
   }
 
@@ -505,7 +502,7 @@ export class ScriptureScribeSettingTab extends PluginSettingTab {
 
     let c = this.row(sec, "Definitions", "Simple shows plain-English meanings; Advanced shows the full lexicon entry and raw grammar codes.");
     this.segmented(c, [{ value: "simple", label: "Simple" }, { value: "advanced", label: "Advanced" }], this.s.morphology.uiMode,
-      async v => { this.s.morphology.uiMode = v; draw(); await this.save(); });
+      async v => { this.s.morphology.uiMode = v; setDefAdvanced(v === "advanced"); draw(); await this.save(); });
 
     c = this.row(sec, "On each word card", "", true);
     const checks = c.createDiv({ cls: "ss-checks" });
@@ -559,10 +556,7 @@ export class ScriptureScribeSettingTab extends PluginSettingTab {
 
   private renderSetup(root: HTMLElement): void {
     const sec = this.section(root, "Setup", "shepards-hook", "Setup", "Set once when you start; rarely touched after.", true);
-    let c = this.row(sec, "Translations in the version menu", "Comma-separated, e.g. KJV, LXX, ESV, NIV. Versions other than KJV and LXX need internet.", true);
-    this.textInput(c, this.s.favoriteTranslations.join(", "), 1, async v => { this.s.favoriteTranslations = v.split(",").map(x => x.trim()).filter(Boolean); await this.save(); });
-
-    c = this.row(sec, "Fall back to KJV when offline", "If an online version can't load, show the built-in KJV instead.");
+    let c = this.row(sec, "Show the KJV when a translation can't load", "Offline or busy: show the built-in KJV, clearly labelled as KJV. Off shows a message instead.");
     this.toggle(c, this.s.offlineFallback, async v => { this.s.offlineFallback = v; await this.save(); });
 
     c = this.row(sec, "Folders to ignore", "ScriptureScribe won't highlight references in these folders. One path per line.", true);
@@ -577,8 +571,8 @@ export class ScriptureScribeSettingTab extends PluginSettingTab {
     c = this.row(sec, "Rescan notes", "Re-read every note for verse references now.");
     this.button(c, "Scan now", () => this.plugin.startVaultScan(true));
 
-    c = this.row(sec, "Clear verse cache", "Re-fetch online translations.");
-    this.button(c, "Clear", () => new Notice("ScriptureScribe: reload Obsidian to fully clear the cache."));
+    c = this.row(sec, "Clear saved verses", "Forget online verses and chapters fetched this session, so they load fresh.");
+    this.button(c, "Clear", () => { clearScriptureCache(); new Notice("ScriptureScribe: saved online verses cleared."); });
   }
 
   // ── 7. Community & support ─────────────────────────────────────────────────

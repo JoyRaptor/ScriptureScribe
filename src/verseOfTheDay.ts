@@ -310,10 +310,22 @@ function dayOfYear(d: Date): number {
 }
 
 /**
- * Returns today's curated verse — deterministic, no network required.
- * Every user sees the same verse on the same calendar day.
+ * Today's curated verse, no network required. "deterministic" gives every user the same verse on
+ * the same day; "random" gives this device its own sequence (still steady for the whole day).
  */
-export function getVerseOfTheDay(): VOTDEntry {
-  const doy = dayOfYear(new Date());
-  return VOTD_POOL[doy % VOTD_POOL.length];
+export function getVerseOfTheDay(algorithm: "deterministic" | "random" = "deterministic", today = new Date()): VOTDEntry {
+  let n = dayOfYear(today) + today.getFullYear() * 366;
+  if (algorithm === "random") {
+    let salt = 0;
+    try {
+      const key = "scripture-scribe-votd-salt";
+      salt = Number(localStorage.getItem(key)) || Math.floor(Math.random() * 1e9) + 1;
+      localStorage.setItem(key, String(salt));
+    } catch { salt = 7919; }
+    n = Math.imul(n ^ salt, 2654435761) >>> 0; // scramble so consecutive days aren't neighbours
+  }
+  return VOTD_POOL[n % VOTD_POOL.length];
 }
+
+/** Every entry in the pool (for tests). */
+export const VOTD_ENTRIES: readonly VOTDEntry[] = VOTD_POOL;

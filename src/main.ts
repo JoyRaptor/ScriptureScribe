@@ -4,7 +4,8 @@ import {
 } from "obsidian";
 import { ViewPlugin, DecorationSet, Decoration, ViewUpdate, EditorView } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
-import { ScriptureScribeSettings, DEFAULT_SETTINGS } from "./settings";
+import { ScriptureScribeSettings, DEFAULT_SETTINGS, translationInfo } from "./settings";
+import { setDefAdvanced } from "./defHelpers";
 import { parseScriptureRefs, parseBlockRun, continuesAcrossBlank, ScriptureRef, refToString } from "./parser";
 import { ScriptureTooltip } from "./tooltip";
 import { VerseCard } from "./verseCard";
@@ -392,6 +393,10 @@ export default class ScriptureScribePlugin extends Plugin {
     this.settings.verseOfTheDay  = Object.assign({}, DEFAULT_SETTINGS.verseOfTheDay,  this.settings.verseOfTheDay  ?? {});
     this.settings.citation       = Object.assign({}, DEFAULT_SETTINGS.citation,       this.settings.citation       ?? {});
     this.settings.morphology     = Object.assign({}, DEFAULT_SETTINGS.morphology,     this.settings.morphology     ?? {});
+    // Older versions offered translations they could not load (ESV, NIV, TLV…); those now open on
+    // BibleGateway instead, so a saved one falls back to the KJV rather than a mislabelled text.
+    if (!translationInfo(this.settings.primaryTranslation)) this.settings.primaryTranslation = "KJV";
+    setDefAdvanced(this.settings.morphology.uiMode === "advanced");
   }
 
   async saveSettings(): Promise<void> {

@@ -1,5 +1,5 @@
 import esbuild from 'esbuild';import fs from 'node:fs';import path from 'node:path';import {createRequire} from 'node:module';import assert from 'node:assert/strict';import {performance} from 'node:perf_hooks';
-await esbuild.build({stdin:{contents:`export * from './src/parser';export * from './src/fetcher';export * from './src/interlinear';export * from './src/versification';export * from './src/settings';export * from './src/dataLoader';export * from './src/vaultIndex';export {TFile} from 'obsidian';`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'cjs',outfile:'scripts/.runtime-tests.cjs',alias:{obsidian:'./scripts/stubs/obsidian.mjs','@xenova/transformers':'./scripts/stubs/xenova.mjs'},logLevel:'silent'});
+await esbuild.build({stdin:{contents:`export * from './src/parser';export * from './src/fetcher';export * from './src/interlinear';export * from './src/versification';export * from './src/settings';export * from './src/dataLoader';export * from './src/vaultIndex';export {TFile} from 'obsidian';export * from './src/verseOfTheDay';`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'cjs',outfile:'scripts/.runtime-tests.cjs',alias:{obsidian:'./scripts/stubs/obsidian.mjs','@xenova/transformers':'./scripts/stubs/xenova.mjs'},logLevel:'silent'});
 const require=createRequire(import.meta.url),api=require('./.runtime-tests.cjs');
 const root='C:/ObsidianBrain/.obsidian/plugins/scripture-scribe';const reads=[];
 const adapter={read:async p=>{reads.push(p);const file=p.replace(/^plugin\//,'');const derived=path.join('runtime-data',file);return fs.promises.readFile(fs.existsSync(derived)?derived:path.join(root,file),'utf8');}};
@@ -38,4 +38,31 @@ await api.buildVaultIndex(vault,[],undefined,'plugin',()=>true,false,'cancelled'
 const chapterNote=Object.assign(new api.TFile(),{path:'c.md',stat:{mtime:1,size:24}});files.push(chapterNote);docs.set('c.md','see Psalm 50, then Ps 50:3');
 await api.updateVaultIndexForFile(vault,chapterNote);assert.equal(api.getNotesForVerse('Psalms 50:1').length,0);assert.equal(api.getNotesForVerse('Psalms 50:3').length,1);
 api.stopVaultIndex();
+// Translations are honest: only listed translations load, nothing is substituted, failures say so.
+{
+ const realFetch=globalThis.fetch;const calls=[];
+ const settings=t=>({...api.DEFAULT_SETTINGS,primaryTranslation:t});
+ globalThis.fetch=async url=>{calls.push(String(url));const q=decodeURIComponent(String(url).split('bible-api.com/')[1].split('?')[0]);
+  if(String(url).includes('translation=web')&&q==='John 3')return{ok:true,json:async()=>({verses:[1,2,3].map(v=>({verse:v,text:` web ${v}\n`}))})};
+  if(String(url).includes('translation=web'))return{ok:true,json:async()=>({verses:[{verse:16,text:'For God so loved the world (WEB)'}]})};
+  return{ok:false,json:async()=>({error:'not found'})};};
+ let v=await api.getScripture(api.parseScriptureRefs('Jn 3:16')[0],settings('WEB'));
+ assert.equal(v.version,'WEB');assert.equal(v.source,'api');assert.match(v.text,/\(WEB\)/);assert.match(api.sourceLabel(v),/^WEB · bible-api/);
+ v=await api.getScripture(api.parseScriptureRefs('Gen 1:1')[0],settings('YLT'));
+ assert.equal(v.version,'KJV','a failed translation is shown as the KJV it is');assert.equal(v.requested,'YLT');assert.equal(api.sourceLabel(v),'YLT unavailable · showing KJV');
+ const n=calls.length;v=await api.getScripture(api.parseScriptureRefs('Jn 3:16')[0],settings('ESV'));
+ assert.equal(calls.length,n,'copyrighted translations are never fetched');assert.equal(v.version,'KJV');assert.equal(v.requested,'ESV');
+ const before=calls.length;const ch=await api.getOnlineChapter('John',3,'WEB');assert.equal(calls.length,before+1,'a chapter is one request');assert.deepEqual([...ch.keys()],[1,2,3]);assert.equal(ch.get(2),'web 2');
+ await api.getOnlineChapter('John',3,'WEB');assert.equal(calls.length,before+1,'and is reused');
+ assert.equal(await api.getOnlineChapter('John',3,'NIV'),null);
+ api.clearScriptureCache();await api.getOnlineChapter('John',3,'WEB');assert.equal(calls.length,before+2,'clearing the cache really refetches');
+ assert(api.TRANSLATIONS.every(t=>t.id==='KJV'||t.id==='LXX'||t.api),'every selectable translation has a source');
+ globalThis.fetch=realFetch;
+}
+// Verse of the Day: every entry is a real verse (it used to say "Psalm", which no lookup matched).
+{
+ for(const e of api.VOTD_ENTRIES){const ref=api.parseScriptureRefs(`${e.book} ${e.chapter}:${e.verse}`)[0];assert(ref,`${e.book} ${e.chapter}:${e.verse} parses`);
+  const v=await api.getScripture(ref,api.DEFAULT_SETTINGS);assert(!v.text.startsWith('['),`${api.refToString(ref)} has KJV text`);}
+ const day=new Date(2026,10,5);assert.equal(api.getVerseOfTheDay('deterministic',day),api.getVerseOfTheDay('deterministic',day));
+}
 console.log(JSON.stringify({status:'PASS',checks:'lazy text, single-flight, per-book interlinear, Hebrew numbering gaps, dictionary shards, Enoch supplement, 8 mappings, LXX split range, persistent index cold/warm/edit/delete',firstTextMs:Math.round(firstTextMs),diskReads:reads},null,2));

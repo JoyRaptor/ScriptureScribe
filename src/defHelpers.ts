@@ -103,7 +103,8 @@ export function makeSpeakerLink(strongsNum: string, originalWord?: string, trans
     : `https://www.blueletterbible.org/lexicon/${pageId}/kjv/wlc/0-1/`;
 
   const btn = document.createElement("button");
-  btn.title = `Hear pronunciation · ${isGreek ? "G" : "H"}${numOnly}`;
+  btn.title = `Hear ${isGreek ? "G" : "H"}${numOnly} spoken (Google Translate voice, needs internet). ` +
+    `If it can't play, Blue Letter Bible's page with a recorded pronunciation opens instead.`;
   btn.style.cssText = `display:inline-flex;align-items:center;justify-content:center;
     width:20px;height:20px;border-radius:3px;flex-shrink:0;
     color:${PX};opacity:0.65;cursor:pointer;margin-left:4px;
@@ -142,16 +143,8 @@ export function makeSpeakerLink(strongsNum: string, originalWord?: string, trans
     btn.style.opacity = "1";
 
     try {
-      const resp = await requestUrl({
-        url: ttsUrl,
-        method: "GET",
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Referer":    "https://translate.google.com/",
-          "Accept":     "audio/mpeg, audio/*;q=0.9",
-        },
-        throw: false,
-      });
+      // Plain request: no borrowed browser identity. The endpoint answers Obsidian as it is.
+      const resp = await requestUrl({ url: ttsUrl, method: "GET", headers: { "Accept": "audio/mpeg" }, throw: false });
 
       if (resp.status < 200 || resp.status >= 300) throw new Error(`HTTP ${resp.status}`);
 

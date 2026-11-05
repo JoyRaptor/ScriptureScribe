@@ -1,6 +1,6 @@
 import { ScriptureRef, refToString, parseScriptureRefs, expandRef } from "./parser";
 import { mapToSwete } from "./versification";
-import { ScriptureScribeSettings } from "./settings";
+import { ScriptureScribeSettings, translationInfo } from "./settings";
 import { setKJVStoreRef } from "./searchIndex";
 import { ensureData } from "./dataLoader";
 import { ensureVersificationData } from "./versification";
@@ -14,6 +14,16 @@ export interface VerseResult {
   offline?: boolean;
   /** Markdown emphasis from a checked source; text remains plain for search. */
   formattedText?: string;
+  /** Set when the chosen translation couldn't load and this is the KJV shown in its place. */
+  requested?: string;
+}
+
+/** The small source line under a verse: where this text actually came from. */
+export function sourceLabel(v: VerseResult): string {
+  if (v.requested) return `${v.requested} unavailable · showing KJV`;
+  if (v.source === "api") return `${v.version} · bible-api.com`;
+  if (v.source === "cache") return `${v.version} · saved copy`;
+  return v.version === "LXX" ? "Swete LXX · offline" : `${v.version} · offline`;
 }
 
 const CACHE = new Map<string, { result: VerseResult; exp: number }>();
@@ -235,46 +245,52 @@ function lookupLocal(ref: ScriptureRef, version = "KJV"): VerseResult {
   };
 }
 
-async function fetchAPI(ref: ScriptureRef, version: string, timeoutMs: number): Promise<VerseResult | null> {
-  const vMap: Record<string, string> = {
-    KJV:"kjv", ESV:"web", NIV:"web", NASB:"web",
-    NKJV:"kjv", NLT:"web", CSB:"web", AMP:"web", MSG:"web", NRSV:"web",
-  };
-  const apiVer = vMap[version] ?? "kjv";
-
-  // Build query — handle ranges e.g. "Luke 21:35-36"
-  // For comma-lists, fetch the first verse then append extras separately
-  const query = refToString(ref);
-
-  const fetchOne = async (q: string): Promise<string | null> => {
-    const url = `https://bible-api.com/${encodeURIComponent(q)}?translation=${apiVer}`;
-    try {
-      const ctrl = new AbortController();
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      try {
-      timer = setTimeout(() => ctrl.abort(), timeoutMs);
-      const res   = await fetch(url, { signal: ctrl.signal });
-      clearTimeout(timer);
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (!data?.text) return null;
-      if (Array.isArray(data.verses) && data.verses.length > 1) {
-        return data.verses.map((v: any) => v.text.trim()).join(" ");
-      }
-      return data.text.trim().replace(/\n/g, " ");
-      } finally { if (timer) clearTimeout(timer); }
-    } catch { return null; }
-  };
-
+/** bible-api.com passage request; null on any failure (offline, rate-limited, not in that translation). */
+async function bibleApi(query: string, apiId: string, timeoutMs: number): Promise<Array<{ verse: number; text: string }> | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const parts: string[] = [];
-    const primary = await fetchOne(query);
-    if (!primary) return null;
-    parts.push(primary);
-
-    const displayVer = (version !== "KJV" && version !== "WEB" && apiVer === "web") ? `${version} (WEB text)` : (version === "NKJV" ? "NKJV (KJV text)" : version);
-    return { reference: refToString(ref), text: parts.join(" "), version: displayVer, source: "api" };
+    const res = await fetch(`https://bible-api.com/${encodeURIComponent(query)}?translation=${apiId}`, { signal: ctrl.signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!Array.isArray(data?.verses) || !data.verses.length) return null;
+    return data.verses.map((v: any) => ({ verse: Number(v.verse), text: String(v.text).replace(/\s+/g, " ").trim() }));
   } catch { return null; }
+  finally { clearTimeout(timer); }
+}
+
+async function fetchAPI(ref: ScriptureRef, version: string, timeoutMs: number): Promise<VerseResult | null> {
+  const apiId = translationInfo(version)?.api;
+  if (!apiId) return null; // never stand one translation in for another
+  const verses = await bibleApi(refToString(ref), apiId, timeoutMs);
+  if (!verses) return null;
+  return { reference: refToString(ref), text: verses.map(v => v.text).join(" "), version, source: "api" };
+}
+
+const CHAPTERS = new Map<string, Map<number, string>>();
+
+/**
+ * A whole chapter of an online translation in one request (Bible mode). Fetching verse by verse
+ * blew through bible-api.com's 15-requests-per-30-seconds limit and fell back to KJV mid-chapter.
+ * Returns null when the chapter can't load, so the caller can say so rather than mix texts.
+ */
+export async function getOnlineChapter(book: string, chapter: number, version: string): Promise<Map<number, string> | null> {
+  const apiId = translationInfo(version)?.api;
+  if (!apiId) return null;
+  const key = `${version}|${book} ${chapter}`;
+  const hit = CHAPTERS.get(key);
+  if (hit) return hit;
+  const verses = await bibleApi(`${book} ${chapter}`, apiId, 8000);
+  if (!verses) return null;
+  const map = new Map(verses.map(v => [v.verse, v.text] as const));
+  CHAPTERS.set(key, map);
+  return map;
+}
+
+/** Drop every fetched online verse and chapter, so they are requested again. */
+export function clearScriptureCache(): void {
+  CACHE.clear();
+  CHAPTERS.clear();
 }
 
 export async function getScripture(ref: ScriptureRef, settings: ScriptureScribeSettings): Promise<VerseResult> {
@@ -297,11 +313,12 @@ export async function getScripture(ref: ScriptureRef, settings: ScriptureScribeS
     return r;
   }
 
-  const api = await fetchAPI(ref, ver, 3000);
+  const api = await fetchAPI(ref, ver, 4000);
   if (api) { toCache(api, ver); return api; }
 
-  if (!settings.offlineFallback) return {reference: refStr, text: `[${ver} unavailable; offline fallback is disabled.]`, version: ver, source: "api", offline: true};
-  // Fallback to local KJV
+  const why = translationInfo(ver)?.note ? `${ver} couldn't load this verse (${translationInfo(ver)!.note} only, or offline)` : `${ver} couldn't load (offline or busy)`;
+  if (!settings.offlineFallback) return {reference: refStr, text: `[${why}. Showing the KJV instead is turned off in settings.]`, version: ver, source: "api", offline: true};
+  // Fallback to local KJV, labelled as the KJV it is.
   const fallback = lookupLocal(ref);
-  return { ...fallback, offline: true };
+  return { ...fallback, offline: true, requested: ver };
 }

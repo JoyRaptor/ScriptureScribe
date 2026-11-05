@@ -77,3 +77,8 @@ for(const [input,canonical] of [['mt1:23','Matthew 1:23'],['Jn 3:16 and v23','Jo
 let editor=editorFor('Jn 3:16 and `Jude 5`');await api.embedAllRefs(editor,'link',api.DEFAULT_SETTINGS);assert(editor.value.includes('`Jude 5`'));assert.equal((editor.value.match(/biblegateway.com/g)||[]).length,1);
 editor=editorFor('Jn 3:16');const pending=api.embedAllRefs(editor,'quote',api.DEFAULT_SETTINGS);editor.value='An edit made during passage loading';await pending;assert.equal(editor.value,'An edit made during passage loading');
 console.log('PASS: abbreviated/carried/dash embeds, Markdown exclusions and concurrent-edit protection');
+// "Add the version to embeds" is honoured (it used to be ignored).
+editor=editorFor('Jn 3:16');await api.embedAllRefs(editor,'quote',{...api.DEFAULT_SETTINGS,embedding:{...api.DEFAULT_SETTINGS.embedding,includeVersionBadge:false}});
+assert(editor.value.includes('— John 3:16')&&!editor.value.includes('John 3:16, KJV'),editor.value);
+editor=editorFor('Jn 3:16');await api.embedAllRefs(editor,'quote',api.DEFAULT_SETTINGS);assert(editor.value.includes('John 3:16, KJV'));
+console.log('PASS: embed version setting');

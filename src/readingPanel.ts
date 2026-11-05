@@ -3,9 +3,11 @@ import { mapToHebrew } from "./versification";
 import { renderPassage } from "./textFormatting";
 import { ItemView, WorkspaceLeaf, Editor, App, MarkdownView, Notice } from "obsidian";
 import { ScriptureRef, refToString, parseScriptureRefs } from "./parser";
-import { ensureKJVData, getScripture, getKJVData } from "./fetcher";
+import { ensureKJVData, getScripture, getKJVData, sourceLabel } from "./fetcher";
+import { fillVersionMenu } from "./versionMenu";
 import { fetchInterlinear, fetchStrongsDefinition, InterlinearWord, getGreekData, getHebrewData, getLXXData, OT_BOOKS } from "./interlinear";
 import { ScriptureScribeSettings } from "./settings";
+import { getEmbeddingSource } from "./semanticSearch";
 import { buildSimpleDefinition, buildSimpleDom, buildAdvancedDefinition, makeSpeakerLink, makeGlobeLink, isDefAdvanced, toggleDefAdvanced, DefCallbacks, setDefPalette } from "./defHelpers";
 import { ensureCrossRefData, getCrossRefs, isCrossRefLoaded } from "./crossRefs";
 import { ensureSearchIndex, buildSearchIndex, search, isIndexBuilt, SearchResult, getKJVText, morphSearch, isMorphIndexBuilt } from "./searchIndex";
@@ -277,16 +279,14 @@ export class ScriptureReadingPanel extends ItemView {
    */
   showVerseOfTheDay(forceShow = false): void {
     if (this.currentRef && !forceShow) return; // already showing a verse
-    const votd = getVerseOfTheDay();
-    const ref: ScriptureRef = {
-      book:       votd.book,
-      chapter:    votd.chapter,
-      verseStart: votd.verse,
-      raw:        `${votd.book} ${votd.chapter}:${votd.verse}`,
-      start:      0,
-      end:        0,
-    };
-    this.setRef(ref, null);
+    const ref = this.votdRef();
+    if (ref) this.setRef(ref, null);
+  }
+
+  /** Today's verse as a parsed reference, so its book name matches the Bible data ("Psalm" → Psalms). */
+  private votdRef(): ScriptureRef | null {
+    const votd = getVerseOfTheDay(this.settings.verseOfTheDay?.algorithm);
+    return parseScriptureRefs(`${votd.book} ${votd.chapter}:${votd.verse}`)[0] ?? null;
   }
 
   /**
@@ -388,10 +388,8 @@ export class ScriptureReadingPanel extends ItemView {
       // Footer
       const srcEl = this.contentEl.querySelector<HTMLElement>(".ss-panel-src")!;
       const offlineEl = this.contentEl.querySelector<HTMLElement>(".ss-panel-offline")!;
-      srcEl.textContent = verse.source === "local" ? (verse.version === "LXX" ? "Local LXX (Swete)" : "Local KJV")
-        : verse.source === "cache" ? `Cache · ${verse.version}`
-          : "bible-api.com";
-      offlineEl.style.display = verse.offline ? "inline" : "none";
+      srcEl.textContent = sourceLabel(verse);
+      offlineEl.style.display = "none";
       this.footEl.style.display = "flex";
 
       // Grid — only render if interlinear is active
@@ -995,6 +993,15 @@ export class ScriptureReadingPanel extends ItemView {
     lbl.textContent = results.length
       ? `${labelPrefix}: ${displayQuery} — ${results.length} result${results.length === 1 ? "" : "s"}`
       : `${labelPrefix}: ${displayQuery} — no results`;
+    // Say which engine found concept matches: the meaning model, Smart Connections, or plain
+    // keyword scoring when neither could load (it downloads ~23 MB the first time, so needs internet).
+    if (mode === "semantic" || results.some(r => (r as any).isSemantic)) {
+      const engine = getEmbeddingSource();
+      lbl.title = engine === "none"
+        ? "Concept matches came from keyword scoring: the meaning model couldn't load (it needs internet the first time)."
+        : `Concept matches by meaning (${engine === "xenova" ? "built-in model" : "Smart Connections model"}).`;
+      if (engine === "none") lbl.textContent += " · keyword fallback";
+    }
     const rightSide = hdr.createEl("div");
     rightSide.style.cssText = "display:flex; align-items:center; gap:2px;";
 
@@ -1766,10 +1773,8 @@ export class ScriptureReadingPanel extends ItemView {
 
     const srcEl = this.contentEl.querySelector<HTMLElement>(".ss-panel-src")!;
     const offlineEl = this.contentEl.querySelector<HTMLElement>(".ss-panel-offline")!;
-    srcEl.textContent = verse.source === "local" ? "Local KJV"
-      : verse.source === "cache" ? `Cache · ${verse.version}`
-        : "bible-api.com";
-    offlineEl.style.display = verse.offline ? "inline" : "none";
+    srcEl.textContent = sourceLabel(verse);
+    offlineEl.style.display = "none";
     this.footEl.style.display = "flex";
 
     this.renderGrid(words);
@@ -1984,18 +1989,12 @@ export class ScriptureReadingPanel extends ItemView {
   }
 
   private populateVersionDropdown(dd: HTMLElement): void {
-    dd.empty();
-    for (const v of this.settings.favoriteTranslations) {
-      const item = dd.createEl("div");
-      item.textContent = v;
-      item.style.cssText = "padding:7px 12px;cursor:pointer;font-size:12px;color:var(--text-normal);";
-      item.addEventListener("mouseenter", () => item.style.background = "var(--background-modifier-hover)");
-      item.addEventListener("mouseleave", () => item.style.background = "");
-      item.addEventListener("click", async (e) => {
-        e.stopPropagation();
+    fillVersionMenu(dd, this.settings.primaryTranslation, async (v) => {
         dd.style.display = "none";
         this.settings.primaryTranslation = v;
         this.verLabel.textContent = v;
+        await this.onSaveSettings();
+        this.populateVersionDropdown(dd); // move the check mark
 
         // Bible mode: reload current chapter verse text in new version
         if (this.bibleMode && this.bibleModeView) {
@@ -2015,13 +2014,10 @@ export class ScriptureReadingPanel extends ItemView {
             const verse = await getScripture(this.currentRef, this.settings);
             this.renderVerseText(verseText, verse.formattedText ?? verse.text);
             if (this.verLabel) this.verLabel.textContent = verse.version;
-            if (srcEl) srcEl.textContent = verse.source === "local" ? "Local KJV"
-              : verse.source === "cache" ? `Cache · ${verse.version}`
-                : "bible-api.com";
+            if (srcEl) srcEl.textContent = sourceLabel(verse);
           }
         }
-      });
-    }
+    }, () => this.currentRef);
   }
 
   private buildEmptyState(root: HTMLElement): void {
@@ -2047,12 +2043,9 @@ export class ScriptureReadingPanel extends ItemView {
 
     // ── Verse of the Day — full display card ──────────────────────────────────
     if (this.settings.verseOfTheDay?.enabled !== false) {
-      const votd = getVerseOfTheDay();
-
-      // Look up verse text from local KJV data synchronously
-      const kjvData = getKJVData() as Record<string, string>;
-      const verseKey = `${votd.book} ${votd.chapter}:${votd.verse}`;
-      const verseText = kjvData[verseKey] ?? "";
+      const votd = getVerseOfTheDay(this.settings.verseOfTheDay?.algorithm);
+      const votdRef = this.votdRef();
+      const verseKey = votdRef ? `${votdRef.book} ${votdRef.chapter}:${votdRef.verseStart}` : "";
 
       const card = this.emptyEl.createEl("div");
       card.style.cssText = `
@@ -2093,24 +2086,21 @@ export class ScriptureReadingPanel extends ItemView {
       tag.textContent = votd.tag;
       tag.style.cssText = `font-size:10px; color:${this.P}; font-weight:600; opacity:0.85;`;
 
-      // Verse text — the whole point
-      if (verseText) {
-        const text = card.createEl("div");
-        // Truncate gracefully if very long
-        const display = verseText.length > 180
-          ? verseText.slice(0, 177) + "…"
-          : verseText;
-        text.textContent = `"${display}"`;
-        text.style.cssText = `
-          font-size:12px; line-height:1.65;
-          color:var(--text-normal); font-style:italic;
-          margin-bottom:10px;
-        `;
-      }
+      // Verse text — the whole point. The Bible loads shortly after startup, so fill it in when ready.
+      const text = card.createEl("div");
+      text.style.cssText = `
+        font-size:12px; line-height:1.65;
+        color:var(--text-normal); font-style:italic;
+        margin-bottom:10px;
+      `;
+      void ensureKJVData().then(() => {
+        const verseText = (getKJVData() as Record<string, string>)[verseKey] ?? "";
+        text.textContent = verseText ? `"${verseText.length > 180 ? verseText.slice(0, 177) + "…" : verseText}"` : "";
+      });
 
       // Reference line
       const ref = card.createEl("div");
-      ref.textContent = `— ${votd.book} ${votd.chapter}:${votd.verse}`;
+      ref.textContent = `— ${votdRef ? refToString(votdRef) : `${votd.book} ${votd.chapter}:${votd.verse}`}`;
       ref.style.cssText = `
         font-size:10.5px; font-weight:600;
         color:${this.P}; opacity:0.9;
@@ -2676,7 +2666,11 @@ export class ScriptureReadingPanel extends ItemView {
       toggleBtn.textContent = isDefAdvanced() ? "advanced" : "simple";
     };
     toggleBtn.addEventListener("click", (e) => {
-      e.stopPropagation(); toggleDefAdvanced(); applyMode();
+      e.stopPropagation();
+      // Same choice as Settings → Word study → Definitions; remember it.
+      this.settings.morphology.uiMode = toggleDefAdvanced() ? "advanced" : "simple";
+      void this.onSaveSettings();
+      applyMode();
     });
 
     // ── Scholar Mode Morphology Breakdown ────────────────────────────────────
