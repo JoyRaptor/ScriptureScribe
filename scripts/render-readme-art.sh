@@ -25,7 +25,7 @@ timeout 90 "$BROWSER" --headless=new --disable-gpu --hide-scrollbars --user-data
   --window-size=1280,640 --force-device-scale-factor=1 --virtual-time-budget=6000 \
   --screenshot="$PWD/docs/images/social-preview.png" "http://localhost:8791/brand/readme-art.html?p=social" >/dev/null 2>&1
 echo "docs/images/social-preview.png"
-# Site icons from docs/assets/favicon.svg (the plugin's Open-Bible app icon on a dark tile).
+# Site icons from docs/assets/favicon.svg (the site's gradient book mark).
 timeout 90 "$BROWSER" --headless=new --disable-gpu --user-data-dir="$PROFILE" --window-size=32,32 --default-background-color=00000000 \
   --screenshot="$PWD/docs/assets/favicon-32.png" "http://localhost:8791/assets/favicon.svg" >/dev/null 2>&1
 timeout 90 "$BROWSER" --headless=new --disable-gpu --user-data-dir="$PROFILE" --window-size=180,180 --default-background-color=0a0816ff \

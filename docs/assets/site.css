@@ -95,7 +95,7 @@ strong { color: #fff; font-weight: 600; }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font: 600 1.08rem var(--sans); letter-spacing: .01em; }
 .brand:hover { text-decoration: none; }
 .brand b { font-weight: 600; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.brand-mark { width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 0 7px rgba(255, 140, 120, .45)); }
+.brand-mark { width: 28px; height: 28px; filter: drop-shadow(0 0 6px rgba(53, 224, 255, .6)); }
 .nav-links { display: flex; gap: 26px; margin-left: auto; }
 .nav-links a { color: var(--ink-2); font: 500 .9rem var(--sans); letter-spacing: .02em; }
 .nav-links a:hover { color: #fff; text-decoration: none; text-shadow: 0 0 12px rgba(53, 224, 255, .8); }
