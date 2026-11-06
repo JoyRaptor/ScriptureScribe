@@ -37,6 +37,8 @@ shutil.copytree(plugin_src, plugin, ignore=lambda d, names: [n for n in names if
 for f in ("main.js", "styles.css", "manifest.json", "LICENSE", "THIRD-PARTY-NOTICES.md"):
     shutil.copy(os.path.join(repo, f), plugin)
 shutil.copytree(os.path.join(repo, "LICENSES"), os.path.join(plugin, "LICENSES"))
+# Desktop wallpaper art for anyone who wants it (lives in the plugin folder; Obsidian ignores it).
+shutil.copy(os.path.join(repo, "docs", "brand", "scripture-scribe-faith-grace.jpg"), os.path.join(plugin, "ScriptureScribe wallpaper.jpg"))
 with open(os.path.join(plugin, "INSTALL.txt"), "w", encoding="utf8") as f:
     f.write("ScriptureScribe - install\n"
             "1. Copy THIS folder (\"scripture-scribe\") into:  <your vault>/.obsidian/plugins/\n"
