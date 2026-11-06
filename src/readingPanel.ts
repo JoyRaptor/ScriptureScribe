@@ -1079,10 +1079,10 @@ export class ScriptureReadingPanel extends ItemView {
           border:1px solid ${this.PM};
         `;
         const defHdr = defPanel.createEl("div");
-        defHdr.style.cssText = `font-size:10px;color:${this.P};font-weight:700;margin-bottom:4px;`;
+        defHdr.style.cssText = `font-size:10px;color:${this.PX};font-weight:700;margin-bottom:4px;`;
         defHdr.textContent = `${strongsToFetch} · loading…`;
         const defBody = defPanel.createEl("div");
-        defBody.style.cssText = `font-size:11px;color:${this.PD};line-height:1.6;`;
+        defBody.style.cssText = `font-size:11px;color:${this.PX};line-height:1.6;`;
         defBody.textContent = "";
 
         fetchStrongsDefinition(strongsToFetch).then(def => {

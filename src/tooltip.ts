@@ -287,7 +287,7 @@ export class ScriptureTooltip {
               text-decoration:underline; text-underline-offset:2px;
             ">simple</button>
           </div>
-          <div class="ss-sbdy-simple" style="min-height:8px;"></div>
+          <div class="ss-sbdy-simple" style="min-height:8px; color:#1a1a2e;"></div>
           <div class="ss-sbdy-advanced" style="display:none;"></div>
         </div>
       </div>
@@ -469,7 +469,7 @@ export class ScriptureTooltip {
       };
 
       const bodySimple = sdefEl.createDiv({ cls: "ss-sbdy-simple" });
-      bodySimple.textContent = buildSimpleDefinition(def.definition);
+      buildSimpleDom(bodySimple, def.definition); // dark text: the card is pale in every theme
       
       const bodyAdvanced = sdefEl.createDiv({ cls: "ss-sbdy-advanced" });
       bodyAdvanced.style.display = isDefAdvanced() ? "block" : "none";
@@ -903,12 +903,14 @@ export class ScriptureTooltip {
         speakerWrap.appendChild(makeSpeakerLink(def.number, def.original, def.transliteration));
         speakerWrap.appendChild(makeGlobeLink(def.number));
       }
-      simple.textContent = buildSimpleDefinition(def.definition);
+      // Append below the grammar box (setting textContent here used to erase it), in the card's
+      // own dark text: plain text inherited the theme's light colour, unreadable on the pale card.
+      buildSimpleDom(simple.createDiv(), def.definition);
       advanced.innerHTML = "";
       buildAdvancedDefinition(advanced, def.definition, callbacks);
     } else {
       shdr.textContent   = num;
-      simple.textContent = "Definition unavailable — check internet connection.";
+      simple.createDiv({ text: "Definition unavailable." }).style.color = "#1a1a2e";
     }
 
     this.applyDefMode(simple, advanced, toggle);
