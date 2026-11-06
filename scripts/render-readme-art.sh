@@ -20,3 +20,14 @@ render bible    1280 640
 render research 1280 760
 render cards    1280 830
 render button   680  170 --default-background-color=00000000
+# Social preview (GitHub Settings -> Social preview, and the site's og:image): exactly 1280x640.
+timeout 90 "$BROWSER" --headless=new --disable-gpu --hide-scrollbars --user-data-dir="$PROFILE" \
+  --window-size=1280,640 --force-device-scale-factor=1 --virtual-time-budget=6000 \
+  --screenshot="$PWD/docs/images/social-preview.png" "http://localhost:8791/brand/readme-art.html?p=social" >/dev/null 2>&1
+echo "docs/images/social-preview.png"
+# Site icons from docs/assets/favicon.svg (the plugin's Open-Bible app icon on a dark tile).
+timeout 90 "$BROWSER" --headless=new --disable-gpu --user-data-dir="$PROFILE" --window-size=32,32 --default-background-color=00000000 \
+  --screenshot="$PWD/docs/assets/favicon-32.png" "http://localhost:8791/assets/favicon.svg" >/dev/null 2>&1
+timeout 90 "$BROWSER" --headless=new --disable-gpu --user-data-dir="$PROFILE" --window-size=180,180 --default-background-color=0a0816ff \
+  --screenshot="$PWD/docs/assets/apple-touch-icon.png" "http://localhost:8791/assets/favicon.svg" >/dev/null 2>&1
+echo "docs/assets/favicon-32.png docs/assets/apple-touch-icon.png"

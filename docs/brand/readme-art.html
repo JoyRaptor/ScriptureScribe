@@ -70,6 +70,21 @@
   #cards .frame-cinema { max-width: 900px; }
   #cards .skins { margin-top: 26px; }
 
+
+  /* social preview (GitHub / link cards): 1280x640, keep text inside the middle 1200x560 */
+  #social { height: 640px; }
+  #social .in { position: absolute; inset: 0; display: grid; grid-template-columns: 600px 1fr; align-items: center; padding: 0 40px 0 76px; }
+  #social .logo { width: 128px; height: 128px; display: block; margin: 0 0 14px -6px; filter: drop-shadow(0 0 22px rgba(255, 120, 140, .45)) drop-shadow(0 0 40px rgba(84, 216, 213, .3)); }
+  #social h1 { font-size: 92px; line-height: .95; margin: 0; white-space: nowrap; }
+  #social .tagline { margin: 18px 0 0; font: 600 .95rem var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--cyan); text-shadow: 0 0 12px rgba(53, 224, 255, .7); }
+  #social .lede { font-size: 1.22rem; color: var(--ink-2); margin: 14px 0 22px; max-width: 25em; }
+  #social .vis { position: relative; height: 100%; }
+  #social .s-bible { position: absolute; width: 270px; left: 20px; top: 70px; transform: rotate(-6deg); z-index: 1; }
+  #social .s-lex { position: absolute; width: 262px; left: 262px; top: 56px; transform: rotate(4deg); z-index: 2; }
+  #social .frame img { mask-image: none; -webkit-mask-image: none; }
+  #social .s-bible, #social .s-lex { height: 500px; }
+  #social .s-bible img, #social .s-lex img { height: 100%; width: 100%; object-fit: cover; object-position: top; }
+
   /* download button: transparent background */
   #button { width: 680px; height: 170px; background: transparent; display: none; }
   #button.on { display: flex; align-items: center; justify-content: center; }
@@ -88,7 +103,7 @@
   <div class="floor"></div>
   <div class="in">
     <div>
-      <div class="brand"><svg class="brand-mark" viewBox="0 0 32 32"><path d="M16 9c-3-2.2-7.2-2.8-11-2v17c3.8-.8 8 0 11 2 3-2 7.2-2.8 11-2V7c-3.8-.8-8-.2-11 2Z" fill="none" stroke="url(#bm)" stroke-width="2" stroke-linejoin="round"/><path d="M16 9v17" stroke="url(#bm)" stroke-width="2"/></svg><span>Scripture<b>Scribe</b></span></div>
+      <div class="brand"><img class="brand-mark" src="../assets/icon.svg" alt="" aria-hidden="true"><span>Scripture<b>Scribe</b></span></div>
       <h1>Scripture,<br><em>illuminated.</em></h1>
       <p class="lede">A Bible study workbench for Obsidian. Hover verses, read the Bible beside your notes, dig into Hebrew &amp; Greek, and present full-screen verse cards.</p>
       <ul class="hero-meta"><li>Works offline</li><li>Hebrew · Greek · LXX</li><li>Free &amp; open source</li></ul>
@@ -161,6 +176,26 @@
     <h2>Put the Word <em>in lights.</em></h2>
     <figure class="frame frame-cinema"><img src="../images/card-mode.png" alt=""></figure>
     <div class="skins"><span class="skin on">Velvet Aurora</span><span class="skin">Velvet Rainbow</span><span class="skin">Obsidian Minimal</span><span class="skin skin-add">+ your own .html</span></div>
+  </div>
+</section>
+
+<!-- ── social preview ── -->
+<section class="plate" id="social">
+  <div class="bg-glow"></div><div class="bokeh"></div>
+  <svg class="streak" viewBox="0 0 1600 900" preserveAspectRatio="none"><path d="M-40 860 C 380 860, 620 760, 860 790 S 1260 870, 1640 740" fill="none" stroke="url(#st)" stroke-width="2.5"/></svg>
+  <div class="floor"></div>
+  <div class="in">
+    <div>
+      <img class="logo" src="../assets/icon.svg" alt="">
+      <h1>Scripture<em>Scribe</em></h1>
+      <p class="tagline">Bible study in Obsidian</p>
+      <p class="lede">Your notes light up the Bible. Hover any verse, open the Greek and Hebrew, put the Word on screen.</p>
+      <ul class="hero-meta"><li>Works offline</li><li>Hebrew · Greek · LXX</li><li>Free &amp; open source</li></ul>
+    </div>
+    <div class="vis">
+      <figure class="frame s-bible"><img src="../images/bible-rev10.webp" alt=""></figure>
+      <figure class="frame s-lex"><img src="../images/strongs-john-6-47.png" alt=""></figure>
+    </div>
   </div>
 </section>
 
