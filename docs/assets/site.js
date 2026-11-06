@@ -176,6 +176,56 @@
   }));
   renderSet("greek");
 
+  /* ── 04: live Card Mode preview: real skin files, the plugin's card runtime ── */
+  const live = $("#card-live"), picker = $("#skin-picker");
+  if (live && picker && !shot) {
+    const start = () => {
+      const s = document.createElement("script");
+      s.src = "assets/cards.js";
+      s.onload = () => {
+        const { skins, content } = window.SS_CARDS;
+        let frame = null;
+        const fit = () => { if (frame) frame.style.transform = `scale(${live.clientWidth / 1600})`; };
+        addEventListener("resize", fit);
+        addEventListener("message", (e) => {
+          if (frame && e.source === frame.contentWindow && e.data?.ss && e.data.type === "ready") {
+            frame.contentWindow.postMessage({ ss: 1, type: "show", content }, "*");
+            const shown = frame;
+            // Cross-fade: the previous card stays until this one has drawn, then leaves.
+            setTimeout(() => {
+              shown.classList.add("ready");
+              live.querySelectorAll("iframe").forEach((f) => { if (f !== shown) setTimeout(() => f.remove(), 600); });
+            }, 350);
+          }
+        });
+        const load = (i) => {
+          picker.querySelectorAll("button").forEach((b, k) => b.classList.toggle("on", k === i));
+          frame = document.createElement("iframe");
+          frame.setAttribute("sandbox", "allow-scripts"); // same isolation as in Obsidian
+          // Match the skin's color scheme so Chrome keeps the frame transparent while it loads
+          // (a dark page around a light-scheme frame gets an opaque white backdrop: the flash).
+          frame.style.colorScheme = "normal";
+          frame.title = `${skins[i].name} card skin`;
+          frame.srcdoc = skins[i].html;
+          live.appendChild(frame);
+          fit();
+        };
+        picker.innerHTML = "";
+        skins.forEach((sk, i) => {
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "skin"; b.textContent = sk.name;
+          b.addEventListener("click", () => load(i));
+          picker.appendChild(b);
+        });
+        const add = document.createElement("span"); add.className = "skin skin-add"; add.textContent = "+ your own .html"; picker.appendChild(add);
+        load(0);
+      };
+      document.head.appendChild(s);
+    };
+    const lio = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { lio.disconnect(); start(); } }, { rootMargin: "300px" });
+    lio.observe(live);
+  }
+
   /* ── stats count-up ── */
   const fmt = new Intl.NumberFormat("en-US");
   const sio = new IntersectionObserver((entries) => {

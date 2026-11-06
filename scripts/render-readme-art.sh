@@ -4,10 +4,12 @@
 # and Microsoft Edge or Chrome (set BROWSER to override).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-BROWSER="${BROWSER:-/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe}"
-PROFILE="$(mktemp -d)"
+# Prefer Playwright's headless shell (built for screenshots); Edge's launcher goes silent mid-update.
+SHELL_BIN=$(ls "$HOME"/AppData/Local/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell.exe 2>/dev/null | head -1)
+BROWSER="${BROWSER:-${SHELL_BIN:-/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe}}"
+PROFILE="$(cygpath -m "$(mktemp -d)" 2>/dev/null || mktemp -d)"
 render() { # name width height [extra flags]
-  "$BROWSER" --headless=new --disable-gpu --hide-scrollbars --user-data-dir="$PROFILE" \
+  timeout 90 "$BROWSER" --headless=new --disable-gpu --hide-scrollbars --user-data-dir="$PROFILE" \
     --window-size="$2,$3" --force-device-scale-factor=1.25 --virtual-time-budget=6000 "${@:4}" \
     --screenshot="$PWD/docs/images/readme-$1.png" "http://localhost:8791/brand/readme-art.html?p=$1" >/dev/null 2>&1
   echo "docs/images/readme-$1.png"

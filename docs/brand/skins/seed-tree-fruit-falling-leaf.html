@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Seed Tree Fruit, Falling Leaf — a seed at the verse's corner sends vines along it, golden words smoke in, the reference leaf falls and settles at its foot</title>
+<meta name="ss-in-ms"   content="2600">
+<meta name="ss-out-ms"  content="900">
+<meta name="ss-swap-ms" content="320">
+<meta name="ss-min-font" content="26">
+<meta name="ss-max-font" content="124">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@700&display=swap">
+<style>
+  :root { --ease: cubic-bezier(.22,.8,.24,1); --spring: cubic-bezier(.34,1.45,.5,1); --vine: hsl(96 45% 62%);
+          --l1: hsl(128 62% 80%); --l2: hsl(134 52% 66%); --carve: hsl(138 45% 20%); }
+  html[data-testament="nt"] { --l1: hsl(152 62% 80%); --l2: hsl(158 52% 64%); --carve: hsl(162 48% 18%); }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  html[data-state="idle"] *, html[data-state="idle"] *::before, html[data-state="idle"] *::after { animation-play-state: paused !important; }
+  .stage { position: fixed; inset: 0; overflow: hidden; opacity: 0; transition: opacity .55s ease .3s;
+    background: radial-gradient(60% 55% at 22% 26%, hsl(330 40% 18% / .7), transparent 70%), radial-gradient(55% 50% at 80% 76%, hsl(205 45% 18% / .6), transparent 70%),
+                radial-gradient(120% 100% at 50% 50%, hsl(262 30% 10%), hsl(240 32% 5%)); }
+  html[data-state="in"] .stage, html[data-state="hold"] .stage { opacity: 1; transition: opacity .7s ease; }
+  .stars i { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s); background: hsl(var(--c) 90% 86%); opacity: 0;
+    clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); animation: twinkle var(--d) ease-in-out var(--dl) infinite; }
+  @keyframes twinkle { 0%, 100% { opacity: 0; transform: scale(.3); } 50% { opacity: .6; transform: scale(1) rotate(45deg); } }
+
+  /* background leaves: large, dark and soft, tumbling and swaying as real leaves fall */
+  .fall { position: absolute; inset: 0; perspective: 900px; filter: blur(1.4px); }
+  .fall i { position: absolute; top: -14vh; left: var(--x); animation: drop var(--d) linear var(--dl) infinite; }
+  .fall b { display: block; width: var(--s); height: calc(var(--s) * .52); border-radius: 100% 0; opacity: .5;
+    background: linear-gradient(160deg, hsl(var(--h) 34% 34%) 0 48%, hsl(var(--h) 38% 26%) 52%);
+    animation: sway var(--w) ease-in-out var(--wl) infinite alternate, flutter var(--f) ease-in-out var(--wl) infinite; }
+  @keyframes drop { from { transform: translateY(0); } to { transform: translateY(130vh); } }
+  @keyframes sway { from { translate: -5vw 0; } to { translate: 5vw 0; } }
+  @keyframes flutter { 0% { transform: rotate(-30deg) rotateX(10deg) rotateY(0deg); } 25% { transform: rotate(10deg) rotateX(60deg) rotateY(30deg); }
+    50% { transform: rotate(40deg) rotateX(0deg) rotateY(70deg); } 75% { transform: rotate(5deg) rotateX(-50deg) rotateY(20deg); } 100% { transform: rotate(-30deg) rotateX(10deg) rotateY(0deg); } }
+  html:not([data-state="hold"]) .fall { opacity: 0; transition: opacity .4s; }
+  html[data-state="hold"] .fall { opacity: 1; transition: opacity 2.4s; }
+
+  /* the composition: the verse, framed by its own vines and its leaf */
+  .hero { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .frame { position: relative; width: min(74vw, 1340px); }
+  .corner { position: absolute; left: -11%; top: -17%; width: 64%; height: auto; overflow: visible; pointer-events: none; }
+  .under { position: absolute; left: 22%; bottom: -15%; width: 42%; height: auto; overflow: visible; pointer-events: none; }
+  .vn { fill: none; stroke: var(--vine); stroke-linecap: round; stroke-dasharray: 1000; stroke-dashoffset: 1000; transition: stroke-dashoffset .4s ease; }
+  .vn.thin { stroke: hsl(110 55% 70%); }
+  html[data-state="in"] .vn, html[data-state="hold"] .vn { stroke-dashoffset: 0; transition: stroke-dashoffset 2s var(--ease) .3s; }
+  .vl { transform-box: fill-box; transform-origin: 0% 50%; transform: scale(0); transition: transform .3s ease; }
+  html[data-state="in"] .vl, html[data-state="hold"] .vl { transform: scale(1); transition: transform .8s var(--spring) calc(.6s + var(--i) * 80ms); animation: lsway var(--sd) ease-in-out var(--sl) infinite alternate; }
+  @keyframes lsway { from { rotate: -8deg; } to { rotate: 8deg; } }
+  .shell { transform-box: view-box; transition: transform .4s ease; }
+  html[data-state="in"] .shell.l, html[data-state="hold"] .shell.l { transform: rotate(-26deg); transition: transform 1s var(--spring) .1s; }
+  html[data-state="in"] .shell.r, html[data-state="hold"] .shell.r { transform: rotate(26deg); transition: transform 1s var(--spring) .1s; }
+  .kernel { animation: breathe 3.6s ease-in-out infinite alternate; }
+  @keyframes breathe { from { filter: drop-shadow(0 0 3px hsl(48 100% 75%)); } to { filter: drop-shadow(0 0 14px hsl(48 100% 70%)); } }
+
+  /* golden lettering, set tight so the verse reads as one block; a faint warm-and-cool sheen */
+  [data-ss="text-box"] { width: 100%; height: 50vh; display: flex; align-items: center; justify-content: center; }
+  [data-ss="text"] { width: 100%; font-size: clamp(30px, 8vh, 112px); font-family: "Blackadder ITC", "Cormorant Garamond", Georgia, serif; line-height: 1.02;
+    text-align: center; text-wrap: balance; word-spacing: .04em; color: hsl(46 95% 74%); filter: drop-shadow(0 0 .14em hsl(42 100% 50% / .32)); transition: opacity .3s ease; }
+  html[data-swapping] [data-ss="text"] { opacity: 0; }
+  .w { display: inline-block; padding: 0 .04em;
+    background: linear-gradient(100deg, hsl(46 95% 76%), hsl(40 92% 68%) 26%, hsl(28 70% 76%) 42%, hsl(50 92% 80%) 56%, hsl(170 30% 80%) 66%, hsl(44 95% 72%) 80%, hsl(46 95% 76%));
+    background-size: 400% 100%; background-position: var(--bp) 0; -webkit-background-clip: text; background-clip: text; color: transparent;
+    opacity: 0; transform: translateY(-.3em) scale(1.1); filter: blur(16px); letter-spacing: .1em;
+    transition: opacity .3s, filter .3s, transform .3s; animation: irid 20s linear infinite; }
+  @keyframes irid { to { background-position: calc(var(--bp) + 400%) 0; } }
+  .w.pre { opacity: 0 !important; transition: none !important; }
+  html[data-state="in"] .w, html[data-state="hold"] .w { opacity: 1; filter: none; transform: none; letter-spacing: 0;
+    transition: opacity 1.2s ease, filter 1.6s ease, transform 1.6s var(--ease), letter-spacing 1.6s var(--ease); transition-delay: calc(var(--i) * var(--step, 60ms) + 500ms); }
+
+  /* the reference leaf falls, rocking, and settles against the verse's lower right */
+  .leafwrap { position: absolute; right: -6%; bottom: -19%; width: clamp(150px, 25vh, 320px); aspect-ratio: 400 / 230; opacity: 0; transition: opacity .4s ease; }
+  /* it falls like a real leaf: swinging in shrinking arcs under gravity, fastest at the bottom of each
+     swing and slowing as it rises at the ends, its high side tipping up, until it settles */
+  html[data-state="in"] .leafwrap, html[data-state="hold"] .leafwrap { opacity: 1; animation: descend 3.2s cubic-bezier(.3,.15,.35,1) 1.1s both; }
+  @keyframes descend { from { transform: translate(-12vw, -66vh); } to { transform: none; } }
+  .swing { position: relative; width: 100%; height: 100%; }
+  html[data-state="in"] .swing, html[data-state="hold"] .swing { animation: swing 3.2s linear 1.1s both; }
+  @keyframes swing {
+    0%   { transform: translate(-9vw, -2.6vh) rotate(30deg); animation-timing-function: ease-in; }
+    10%  { transform: translate(0, 1.8vh) rotate(0deg); animation-timing-function: ease-out; }
+    21%  { transform: translate(8vw, -2.2vh) rotate(-26deg); animation-timing-function: ease-in; }
+    32%  { transform: translate(0, 1.5vh) rotate(0deg); animation-timing-function: ease-out; }
+    43%  { transform: translate(-6vw, -1.6vh) rotate(19deg); animation-timing-function: ease-in; }
+    54%  { transform: translate(0, 1vh) rotate(0deg); animation-timing-function: ease-out; }
+    65%  { transform: translate(4vw, -1vh) rotate(-12deg); animation-timing-function: ease-in; }
+    75%  { transform: translate(0, .6vh) rotate(0deg); animation-timing-function: ease-out; }
+    86%  { transform: translate(-1.6vw, -.4vh) rotate(6deg); animation-timing-function: ease-in-out; }
+    100% { transform: rotate(-4deg); }
+  }
+  .leaf { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 1.2vh 2.4vh rgba(0,0,0,.45)); }
+  .ref { position: absolute; left: 15%; right: 10%; top: 45%; transform: translateY(-50%) rotate(-13deg); text-align: center; white-space: nowrap;
+    font: 400 clamp(20px, 5vh, 60px)/1 "Blackadder ITC", "Cormorant Garamond", Georgia, serif; color: var(--carve); text-shadow: 0 .03em 0 hsl(140 70% 90% / .75); }
+  .ver { position: absolute; left: 50%; bottom: -24%; transform: translateX(-50%); padding: .5em 1.3em .45em; font: 700 clamp(10px, 1.4vh, 15px)/1 Inter, system-ui, sans-serif;
+    letter-spacing: .4em; text-indent: .4em; color: hsl(140 40% 78%); border: 1px solid hsl(140 30% 60% / .35); border-radius: 99px; opacity: 0; transition: opacity .3s ease; }
+  html[data-state="in"] .ver, html[data-state="hold"] .ver { opacity: .85; transition: opacity 1s ease 2.4s; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="stars"></div>
+  <div class="fall"></div>
+  <div class="hero">
+    <div class="frame">
+      <svg class="corner" viewBox="0 0 980 560"></svg>
+      <div data-ss="text-box"><div data-ss="text">&nbsp;</div></div>
+      <svg class="under" viewBox="0 0 480 80"></svg>
+      <div class="ver" data-ss="version"></div>
+      <div class="leafwrap">
+        <div class="swing"><svg class="leaf" viewBox="0 0 400 230">
+          <defs>
+            <linearGradient id="lt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color: var(--l1)"/><stop offset="1" stop-color="hsl(96 70% 84%)"/></linearGradient>
+            <linearGradient id="lb" x1="0" y1="1" x2="1" y2="0"><stop offset="0" style="stop-color: var(--l2)"/><stop offset="1" stop-color="hsl(150 55% 72%)"/></linearGradient>
+          </defs>
+          <path d="M26 150 C 18 156, 9 163, 1 171 L 4 174 C 12 167, 20 161, 30 155 Z" fill="var(--vine)"/>
+        <path d="M26 150 C 58 76, 168 24, 290 34 C 340 38, 372 48, 394 56 C 370 66, 330 76, 282 84 C 200 98, 110 124, 26 150 Z" fill="url(#lt)"/>
+        <path d="M26 150 C 110 124, 200 98, 282 84 C 330 76, 370 66, 394 56 C 368 104, 300 172, 200 192 C 120 206, 58 186, 26 150 Z" fill="url(#lb)"/>
+        <path d="M30 148 C 110 124, 200 98, 282 84 S 370 64, 390 57" fill="none" stroke="hsl(100 60% 94% / .6)" stroke-width="2.6" stroke-linecap="round"/>
+        <g fill="none" stroke="hsl(110 60% 94% / .38)" stroke-linecap="round">
+          <path stroke-width="2.2" d="M92 130 C 104 104, 122 82, 146 64"/><path stroke-width="2" d="M158 112 C 172 88, 192 68, 218 52"/><path stroke-width="1.7" d="M226 96 C 240 78, 258 64, 282 54"/><path stroke-width="1.4" d="M292 82 C 304 70, 320 62, 338 56"/>
+          <path stroke-width="2.2" d="M100 128 C 116 152, 134 170, 156 182"/><path stroke-width="2" d="M168 110 C 186 136, 206 156, 232 168"/><path stroke-width="1.7" d="M236 94 C 254 116, 274 132, 298 140"/><path stroke-width="1.4" d="M298 82 C 314 98, 330 108, 350 112"/>
+        </g>
+        </svg>
+        <div class="ref" data-ss="reference"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  if (document.fonts && document.fonts.load) { document.fonts.load('400 40px "Blackadder ITC"'); document.fonts.load('600 40px "Cormorant Garamond"'); }
+  var NS = 'http://www.w3.org/2000/svg', rnd = (function (s) { return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; })(7731);
+  function el(tag, attrs, parent) { var e = document.createElementNS(NS, tag); for (var a in attrs) e.setAttribute(a, attrs[a]); if (parent) parent.appendChild(e); return e; }
+  var stars = document.querySelector('.stars'), HUES = [200, 250, 285, 330, 10, 60, 115, 170];
+  for (var k = 0; k < 14; k++) { var st = document.createElement('i'); st.style.cssText = '--x:' + (rnd() * 96 + 2).toFixed(1) + '%;--y:' + (rnd() * 90 + 4).toFixed(1) + '%;--s:' + (8 + rnd() * 14).toFixed(0) + 'px;--c:' + HUES[k % 8] + ';--d:' + (3 + rnd() * 4).toFixed(1) + 's;--dl:-' + (rnd() * 7).toFixed(1) + 's'; stars.appendChild(st); }
+  var fall = document.querySelector('.fall');
+  for (var f = 0; f < 11; f++) {
+    var lf = document.createElement('i'), d = 20 + rnd() * 14;
+    lf.style.cssText = '--x:' + (rnd() * 100).toFixed(1) + '%;--d:' + d.toFixed(1) + 's;--dl:-' + (rnd() * d).toFixed(1) + 's';
+    var b = document.createElement('b');
+    b.style.cssText = '--s:' + (34 + rnd() * 34).toFixed(0) + 'px;--h:' + (100 + rnd() * 70).toFixed(0) + ';--w:' + (3.2 + rnd() * 2.5).toFixed(1) + 's;--wl:-' + (rnd() * 5).toFixed(1) + 's;--f:' + (4 + rnd() * 3).toFixed(1) + 's';
+    lf.appendChild(b); fall.appendChild(lf);
+  }
+  function coil(x, y, r0, dir, turns) { var dd = '', cx = x + dir * r0, n = Math.round(turns * 28); for (var i = 1; i <= n; i++) { var t = i / n, r = r0 * (1 - t * .8), an = (dir > 0 ? Math.PI : 0) - dir * t * turns * 2 * Math.PI; dd += ' L' + (cx + r * Math.cos(an)).toFixed(1) + ' ' + (y + r * Math.sin(an)).toFixed(1); } return dd; }
+  function leaves(path, svg, count, start, size) {
+    var L = path.getTotalLength();
+    for (var j = 0; j < count; j++) {
+      var t = 0.08 + j * (0.86 / count), q = path.getPointAtLength(t * L), q2 = path.getPointAtLength(Math.min(L, t * L + 2));
+      var ang = Math.atan2(q2.y - q.y, q2.x - q.x) * 180 / Math.PI + (j % 2 ? 58 : -58), sz = size * (0.8 + rnd() * 0.5);
+      var g = el('g', { transform: 'translate(' + q.x.toFixed(1) + ' ' + q.y.toFixed(1) + ') rotate(' + ang.toFixed(0) + ')' }, svg);
+      var p = el('path', { 'class': 'vl', fill: 'hsl(' + (122 + rnd() * 40).toFixed(0) + ' 58% ' + (64 + rnd() * 12).toFixed(0) + '%)', d: 'M0 0 c ' + sz * .25 + ' ' + -sz * .42 + ' ' + sz * .78 + ' ' + -sz * .5 + ' ' + sz * 1.2 + ' ' + -sz * .2 + ' c ' + -sz * .25 + ' ' + sz * .4 + ' ' + -sz * .8 + ' ' + sz * .48 + ' ' + -sz * 1.2 + ' ' + sz * .2 + 'z' }, g);
+      p.style.cssText = '--i:' + (start + j) + ';--sd:' + (4 + rnd() * 3).toFixed(1) + 's;--sl:-' + (rnd() * 4).toFixed(1) + 's';
+    }
+  }
+  var corner = document.querySelector('.corner');
+  var seed = el('g', { transform: 'translate(52 40) scale(1.5)' }, corner);
+  seed.innerHTML = '<ellipse class="kernel" cx="0" cy="6" rx="10" ry="13" fill="hsl(70 75% 86%)"/>' +
+    '<path class="shell l" style="transform-origin:0px 24px" d="M0 24 C -16 24, -21 10, -16 -2 C -13 -10, -5 -13, 0 -13 L -2 6 Z" fill="hsl(36 85% 72%)"/>' +
+    '<path class="shell r" style="transform-origin:0px 24px" d="M0 24 C 16 24, 21 10, 16 -2 C 13 -10, 5 -13, 0 -13 L 2 6 Z" fill="hsl(24 85% 74%)"/>';
+  var top = el('path', { 'class': 'vn', 'stroke-width': 6, pathLength: 1000, d: 'M70 30 C 130 -10, 180 60, 250 34 S 370 -6, 440 40 S 570 70, 650 30 S 770 10, 810 46' + coil(810, 46, 26, -1, 1.5) }, corner);
+  var side = el('path', { 'class': 'vn', 'stroke-width': 6, pathLength: 1000, d: 'M48 70 C 4 130, 74 180, 38 250 S 14 370, 56 430 S 34 510, 44 530' + coil(44, 530, 20, 1, 1.4) }, corner);
+  el('path', { 'class': 'vn thin', 'stroke-width': 3, pathLength: 1000, d: 'M440 40 C 480 80, 530 96, 510 120' + coil(510, 120, 14, 1, 1.3) }, corner);
+  el('path', { 'class': 'vn thin', 'stroke-width': 3, pathLength: 1000, d: 'M38 250 C 84 270, 114 310, 100 340' + coil(100, 340, 12, -1, 1.3) }, corner);
+  leaves(top, corner, 9, 0, 30); leaves(side, corner, 6, 9, 30);
+  var under = document.querySelector('.under');
+  leaves(el('path', { 'class': 'vn thin', 'stroke-width': 4, pathLength: 1000, d: 'M10 46 C 60 20, 110 70, 170 44 S 270 20, 320 50 S 420 60, 460 36' }, under), under, 4, 3, 26);
+
+  var ref = document.querySelector('.ref');
+  function fitRef() { ref.style.fontSize = ''; var box = ref.clientWidth, need = ref.scrollWidth; if (need > box && box > 0) ref.style.fontSize = (parseFloat(getComputedStyle(ref).fontSize) * box / need * 0.96).toFixed(1) + 'px'; }
+  window.addEventListener('resize', fitRef);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitRef);
+  window.addEventListener('ss:content', function () {
+    var t = document.querySelector('[data-ss="text"]'); if (!t) return;
+    var words = (t.textContent || '').split(/\s+/).filter(Boolean), n = words.length, made = [];
+    t.textContent = '';
+    t.style.setProperty('--step', Math.min(70, 1300 / Math.max(n, 1)).toFixed(1) + 'ms');
+    words.forEach(function (w, i) {
+      var s = document.createElement('span'); s.className = 'w pre'; s.style.setProperty('--i', i); s.style.setProperty('--bp', ((i / Math.max(1, n)) * 300).toFixed(0) + '%'); s.textContent = w;
+      t.appendChild(s); if (i < n - 1) t.appendChild(document.createTextNode(' ')); made.push(s);
+    });
+    fitRef();
+    requestAnimationFrame(function () { requestAnimationFrame(function () { made.forEach(function (s) { s.classList.remove('pre'); }); }); });
+  });
+})();
+</script>
+</body>
+</html>

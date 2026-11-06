@@ -209,7 +209,7 @@ html[data-state="in"] body,html[data-state="hold"] body{opacity:1}
 </style></head><body><div style="text-align:center">
 <div data-ss="text-box"><div data-ss="text"></div></div><div data-ss="reference"></div></div></body></html>`;
 
-function injectRuntime(html: string): string {
+export function injectRuntime(html: string): string {
   const tag = `<script>${RUNTIME_SOURCE.replace(/<\/script/gi, "<\\/script")}</script>`;
   if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => m + tag);
   if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, (m) => m + "<head>" + tag + "</head>");
