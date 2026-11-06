@@ -18,6 +18,11 @@
 </p>
 
 <p align="center">
+  <b>Or get the full study vault</b>: ScriptureScribe and the Orchard Tree already installed, with the real studies, as seen on <a href="https://www.youtube.com/playlist?list=PLgxNk3D5DVOfHKKx-UaiHH4urLASes8Lu">JoyRaptor's Bible studies</a>.<br>
+  <a href="https://github.com/JoyRaptor/ScriptureScribe/releases/latest/download/ScriptureScribe-demo-vault.zip"><b>⬇ Download the study vault (84 MB)</b></a>
+</p>
+
+<p align="center">
   <a href="https://joyraptor.github.io/ScriptureScribe/"><b>Website</b></a> &nbsp;·&nbsp;
   <a href="#-install-in-2-minutes"><b>Install in 2 minutes</b></a> &nbsp;·&nbsp;
   <a href="https://github.com/JoyRaptor/ScriptureScribe/releases"><b>Releases</b></a>
