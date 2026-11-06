@@ -274,6 +274,26 @@ h2 { font-size: clamp(2.5rem, 5vw, 4.1rem); line-height: 1; margin-bottom: 24px;
 .js .reveal { opacity: 0; transform: translateY(28px); transition: opacity .9s cubic-bezier(.2, .7, .2, 1), transform .9s cubic-bezier(.2, .7, .2, 1); }
 .js .reveal.in { opacity: 1; transform: none; }
 
+/* ── devices: desktop + phone ── */
+.devices { position: relative; max-width: 1060px; margin: 10px auto 0; padding: 0 0 40px; }
+.monitor { width: 84%; }
+.monitor-screen { border-radius: 16px; padding: 12px; background: linear-gradient(160deg, #1b1830, #0b0a14); border: 1px solid var(--line-2);
+  box-shadow: 0 40px 120px -30px rgba(0, 0, 0, .95), 0 0 80px -20px rgba(53, 224, 255, .45), inset 0 0 0 1px rgba(255, 255, 255, .04); }
+.monitor-screen img { border-radius: 6px; width: 100%; }
+.monitor-neck { width: 14%; height: 34px; margin: 0 auto; background: linear-gradient(#1a1730, #0d0c18); }
+.monitor-foot { width: 32%; height: 10px; margin: 0 auto; border-radius: 0 0 12px 12px; background: #15132a; box-shadow: 0 16px 30px -10px rgba(0, 0, 0, .8); }
+.phone-device { position: absolute; right: 2%; bottom: 0; width: 25%; border-radius: 34px; padding: 10px; background: linear-gradient(160deg, #26223f, #0b0a14);
+  border: 1px solid rgba(255, 255, 255, .14); transform: rotate(4deg);
+  box-shadow: 0 40px 90px -20px rgba(0, 0, 0, .95), 0 0 70px -10px rgba(255, 63, 208, .55); }
+.phone-device::before { content: ""; position: absolute; top: 16px; left: 50%; width: 22%; height: 6px; transform: translateX(-50%); border-radius: 6px; background: #050409; z-index: 2; }
+.phone-screen { border-radius: 26px; overflow: hidden; aspect-ratio: 9 / 19; background: #1e1e28; }
+.phone-screen img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.device-banner { position: absolute; right: 0; bottom: -18px; z-index: 3; display: inline-flex; align-items: center; gap: 9px; padding: 10px 18px;
+  font: 700 .8rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: #0b0614; border-radius: 999px;
+  background: linear-gradient(100deg, #6ef0ff, #b48cff 45%, #ff6be0 80%, #ffcf6e);
+  box-shadow: 0 10px 34px -8px rgba(255, 63, 208, .7), 0 0 40px -10px rgba(53, 224, 255, .8); }
+.device-banner .pulse { background: #0b0614; box-shadow: none; }
+
 /* ── why: comparison ── */
 .vs { max-width: 1040px; margin: 0 auto; border-radius: 20px; overflow: hidden; border: 1px solid var(--line-2);
   background: linear-gradient(180deg, rgba(20, 18, 38, .85), rgba(10, 9, 22, .9)); box-shadow: 0 40px 120px -40px rgba(0, 0, 0, .9), 0 0 80px -30px rgba(255, 63, 208, .4); }
@@ -488,6 +508,9 @@ h2 { font-size: clamp(2.5rem, 5vw, 4.1rem); line-height: 1; margin-bottom: 24px;
   .lex-lemma { font-size: 2.6rem; }
   .cards { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: 1fr 1fr; row-gap: 34px; }
+  .monitor { width: 100%; }
+  .phone-device { position: relative; width: 52%; margin: -60px 0 0 auto; right: auto; }
+  .device-banner { position: relative; right: auto; bottom: auto; margin: 18px auto 0; display: flex; width: max-content; }
   .vs-row { grid-template-columns: 1fr 1fr; }
   .vs-row b { grid-column: 1 / -1; padding-bottom: 0; }
   .vs-head span:first-child { display: none; }
