@@ -3,8 +3,8 @@
   "name": "ScriptureScribe",
   "version": "1.0.0",
   "minAppVersion": "0.15.0",
-  "description": "Non-invasive scripture reference hovers with offline KJV fallback and smart embedding (Link, Tooltip, Quote Block).",
-  "author": "ScriptureScribe",
-  "authorUrl": "",
+  "description": "Bible study in your notes: hover any Bible verse, read the Bible with every verse your notes cite highlighted, and open the Greek and Hebrew with an interlinear and Strong's lexicon.",
+  "author": "JoyRaptor",
+  "authorUrl": "https://github.com/JoyRaptor",
   "isDesktopOnly": false
 }
